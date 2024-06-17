@@ -20,17 +20,17 @@
     },
     {
       "title": "patrol on pub.dev",
-      "icon": "dart",
+      "icon": "/assets/dart.png",
       "link": "https://pub.dev/packages/patrol"
     },
     {
       "title": "patrol_finders on pub.dev",
-      "icon": "dart",
+      "icon": "/assets/dart.png",
       "link": "https://pub.dev/packages/patrol_finders"
     },
     {
       "title": "patrol_cli on pub.dev",
-      "icon": "dart",
+      "icon": "/assets/dart.png",
       "link": "https://pub.dev/packages/patrol_cli"
     }
   ],
