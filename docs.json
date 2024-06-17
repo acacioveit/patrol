@@ -17,6 +17,21 @@
       "title": "Join our Discord",
       "icon": "discord",
       "link": "https://discord.gg/ukBK5t4EZg"
+    },
+    {
+      "title": "patrol on pub.dev",
+      "icon": "dart",
+      "link": "https://pub.dev/packages/patrol"
+    },
+    {
+      "title": "patrol_finders on pub.dev",
+      "icon": "dart",
+      "link": "https://pub.dev/packages/patrol_finders"
+    },
+    {
+      "title": "patrol_cli on pub.dev",
+      "icon": "dart",
+      "link": "https://pub.dev/packages/patrol_cli"
     }
   ],
   "sidebar": [
