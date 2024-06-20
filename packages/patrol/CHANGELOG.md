@@ -1,3 +1,7 @@
+## 3.8.1
+
+- Fix MacOSAutomator
+
 ## 3.8.0
 
 - Add `openUrl(String url)` method, for testing deeplinks. (#2219) 
