@@ -11,12 +11,14 @@ class FlutterAppOptions {
     required this.flavor,
     required this.buildMode,
     required this.dartDefines,
+    required this.dartDefineFromFilePaths
   });
 
   final String target;
   final String? flavor;
   final BuildMode buildMode;
   final Map<String, String> dartDefines;
+  final List<String> dartDefineFromFilePaths;
 
   /// Translates these options into a proper `flutter attach`.
   @nonVirtual
@@ -30,6 +32,10 @@ class FlutterAppOptions {
       for (final dartDefine in dartDefines.entries) ...[
         '--dart-define',
         '${dartDefine.key}=${dartDefine.value}',
+      ],
+      for (final dartDefineFromFilePath in dartDefineFromFilePaths) ...[
+        '--dart-define-from-file',
+        dartDefineFromFilePath,
       ],
     ];
 
@@ -161,6 +167,10 @@ class IOSAppOptions {
       for (final dartDefine in flutter.dartDefines.entries) ...[
         '--dart-define',
         '${dartDefine.key}=${dartDefine.value}',
+      ],
+      for (final dartDefineFromFilePath in flutter.dartDefineFromFilePaths) ...[
+        '--dart-define-from-file',
+        dartDefineFromFilePath,
       ],
     ];
 

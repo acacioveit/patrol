@@ -4,6 +4,7 @@ import 'package:path/path.dart' show join;
 import 'package:patrol_cli/src/analytics/analytics.dart';
 import 'package:patrol_cli/src/base/extensions/core.dart';
 import 'package:patrol_cli/src/base/logger.dart';
+import 'package:patrol_cli/src/commands/dart_define_utils.dart';
 import 'package:patrol_cli/src/crossplatform/app_options.dart';
 import 'package:patrol_cli/src/dart_defines_reader.dart';
 import 'package:patrol_cli/src/ios/ios_test_backend.dart';
@@ -32,6 +33,7 @@ class BuildIOSCommand extends PatrolCommand {
     usesBuildModeOption();
     usesFlavorOption();
     usesDartDefineOption();
+    usesDartDefineFromFileOption();
     usesLabelOption();
     usesWaitOption();
 
@@ -115,11 +117,20 @@ class BuildIOSCommand extends PatrolCommand {
       );
     }
 
+    final dartDefineFromFilePaths = stringsArg('dart-define-from-file');
+
+    final mergedDartDefines = mergeDartDefines(
+      dartDefineFromFilePaths,
+      dartDefines,
+      _dartDefinesReader,
+    );
+
     final flutterOpts = FlutterAppOptions(
       target: entrypoint.path,
       flavor: flavor,
       buildMode: buildMode,
-      dartDefines: dartDefines,
+      dartDefines: mergedDartDefines,
+      dartDefineFromFilePaths: dartDefineFromFilePaths,
     );
 
     final iosOpts = IOSAppOptions(
