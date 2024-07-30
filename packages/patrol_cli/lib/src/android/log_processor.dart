@@ -5,8 +5,8 @@ import 'dart:io';
 import 'package:patrol_cli/src/base/logger.dart';
 
 class LogProcessor {
-
-  LogProcessor(this.deviceId, this.logFilePath, this.onObservatoryUri, this._logger);
+  LogProcessor(
+      this.deviceId, this.logFilePath, this.onObservatoryUri, this._logger);
   final String deviceId;
   final String logFilePath;
   final void Function(String) onObservatoryUri;
@@ -40,7 +40,8 @@ class LogProcessor {
     final logFile = File(logFilePath);
     _logSink = logFile.openWrite(mode: FileMode.writeOnly);
 
-    final logcatProcess = await Process.start('adb', ['-s', deviceId, 'logcat']);
+    final logcatProcess =
+        await Process.start('adb', ['-s', deviceId, 'logcat']);
 
     _logSubscription = logcatProcess.stdout
         .transform(utf8.decoder)
@@ -59,7 +60,8 @@ class LogProcessor {
   }
 
   void _checkForObservatoryUri(String line) {
-    final match = RegExp(r'The Dart VM service is listening on (http://[^\s]+)').firstMatch(line);
+    final match = RegExp(r'The Dart VM service is listening on (http://[^\s]+)')
+        .firstMatch(line);
     if (match != null) {
       final observatoryUri = match.group(1);
       if (observatoryUri != null) {
