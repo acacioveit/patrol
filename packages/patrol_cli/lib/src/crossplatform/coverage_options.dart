@@ -40,17 +40,15 @@ class CoverageOptions {
   final List<String> packagesRegExps;
   final String appName;
 
-
+  /// Returns the coverage packages to include in the coverage report.
   Future<Set<String>> getCoveragePackages(
   ) async {
-    // read pubspec.yaml 
-
     final packagesToInclude = <String>{
       if (packagesRegExps.isEmpty) await _getProjectName(),
     };
 
     try {
-      for (final String regExpStr in packagesRegExps) {
+      for (final regExpStr in packagesRegExps) {
         final regExp = RegExp(regExpStr);
         final packagesNames = await _getPackagesNamesFromPackageConfig();
         packagesToInclude.addAll(
@@ -69,6 +67,7 @@ class CoverageOptions {
       final pubspecFile = File('pubspec.yaml');
       final pubspecContent = await pubspecFile.readAsString();
       final pubspec = loadYaml(pubspecContent);
+      // ignore: avoid_dynamic_calls
       return pubspec['name'] as String;
     } on FileSystemException catch (e) {
       throwToolExit('Failed to read pubspec.yaml. $e');
@@ -84,6 +83,7 @@ class CoverageOptions {
       final packagesNames = <String>[];
 
       for (final package in packageJson['packages'] as List) {
+        // ignore: avoid_dynamic_calls
         packagesNames.add(package['name'] as String);
       }
 
@@ -92,5 +92,4 @@ class CoverageOptions {
       throwToolExit('Failed to read package_config.json. $e');
     }
   }
-
 }
