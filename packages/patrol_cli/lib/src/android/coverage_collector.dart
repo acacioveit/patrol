@@ -56,7 +56,8 @@ class CoverageCollector {
     _ensureInitialized();
 
     _currentObservatoryUrlHttp = currentObservatoryUrlHttp;
-    _currentObservatoryUrlWs = _convertToWebSocketUrl(currentObservatoryUrlHttp);
+    _currentObservatoryUrlWs =
+        _convertToWebSocketUrl(currentObservatoryUrlHttp);
 
     await _connectToVmService();
     _isRunning = true;
@@ -78,14 +79,16 @@ class CoverageCollector {
     await _service?.dispose();
     _completer.complete();
 
-    final success = await collectCoverageData(_mergedLcovFile, mergeCoverageData: _options.mergeCoverage);
+    final success = await collectCoverageData(_mergedLcovFile,
+        mergeCoverageData: _options.mergeCoverage);
     _logCoverageResult(success);
   }
 
   /// Collects coverage data for a specific isolate.
   Future<void> collectCoverage(String isolateId) async {
-    _logger.detail('Collecting coverage data from $_currentObservatoryUrlHttp...');
-    
+    _logger
+        .detail('Collecting coverage data from $_currentObservatoryUrlHttp...');
+
     final libraryNamesList = _libraryNames?.toList();
     if (libraryNamesList == null || libraryNamesList.isEmpty) {
       _logger.err('No library names found. Coverage collection aborted.');
@@ -108,7 +111,8 @@ class CoverageCollector {
       return null;
     }
 
-    formatter ??= _createDefaultFormatter(await _getResolver(resolver), coverageDirectory);
+    formatter ??= _createDefaultFormatter(
+        await _getResolver(resolver), coverageDirectory);
 
     final result = formatter(_globalHitmap!);
     _globalHitmap = null;
@@ -116,8 +120,10 @@ class CoverageCollector {
   }
 
   /// Collects and writes coverage data to a file.
-  Future<bool> collectCoverageData(String? coveragePath, {bool mergeCoverageData = false, Directory? coverageDirectory}) async {
-    final coverageData = await finalizeCoverage(coverageDirectory: coverageDirectory);
+  Future<bool> collectCoverageData(String? coveragePath,
+      {bool mergeCoverageData = false, Directory? coverageDirectory}) async {
+    final coverageData =
+        await finalizeCoverage(coverageDirectory: coverageDirectory);
     if (coverageData == null) {
       return false;
     }
@@ -133,20 +139,23 @@ class CoverageCollector {
 
   // Private methods
 
-  Future<coverage.Resolver> _getResolver(coverage.Resolver? providedResolver) async {
+  Future<coverage.Resolver> _getResolver(
+      coverage.Resolver? providedResolver) async {
     if (providedResolver != null) {
       return providedResolver;
     }
     if (_resolver != null) {
       return _resolver!;
     }
-    _resolver = await coverage.Resolver.create(packagesPath: '.dart_tool/package_config.json');
+    _resolver = await coverage.Resolver.create(
+        packagesPath: '.dart_tool/package_config.json');
     return _resolver!;
   }
 
   void _ensureInitialized() {
     if (!_isInitialized) {
-      throw StateError('CoverageCollector not initialized. Call initialize() first.');
+      throw StateError(
+          'CoverageCollector not initialized. Call initialize() first.');
     }
   }
 
@@ -225,7 +234,8 @@ class CoverageCollector {
     return uri.contains('integration_test/') && uri.endsWith('_test.dart');
   }
 
-  Future<void> _setBreakpointsInScript(String isolateId, ScriptRef scriptRef) async {
+  Future<void> _setBreakpointsInScript(
+      String isolateId, ScriptRef scriptRef) async {
     _logger.detail('Setting breakpoints in ${scriptRef.uri}');
 
     final script = await _getScript(isolateId, scriptRef);
@@ -257,8 +267,8 @@ class CoverageCollector {
   bool _isTestFunctionStart(String line) {
     final trimmedLine = line.trim();
     return trimmedLine.startsWith('test(') ||
-           trimmedLine.startsWith('testWidgets(') ||
-           trimmedLine.startsWith('patrol(');
+        trimmedLine.startsWith('testWidgets(') ||
+        trimmedLine.startsWith('patrol(');
   }
 
   int _findTestFunctionEnd(List<String> lines, int startLine) {
@@ -279,14 +289,16 @@ class CoverageCollector {
     return -1;
   }
 
-  Future<void> _addBreakpoint(String isolateId, String scriptUri, int lineNumber) async {
+  Future<void> _addBreakpoint(
+      String isolateId, String scriptUri, int lineNumber) async {
     try {
       final bp = await _service!.addBreakpointWithScriptUri(
         isolateId,
         scriptUri,
         lineNumber,
       );
-      _logger.detail('Breakpoint added: ${bp.id} at line $lineNumber (end of test)');
+      _logger.detail(
+          'Breakpoint added: ${bp.id} at line $lineNumber (end of test)');
     } catch (e) {
       _logger.warn('Error adding breakpoint: $e');
     }
@@ -294,7 +306,8 @@ class CoverageCollector {
 
   Future<void> _handleBreakpoint(Event event) async {
     if (!_isRunning || _service == null) {
-      _logger.warn('TestMonitor is not running or VM service is not available.');
+      _logger
+          .warn('TestMonitor is not running or VM service is not available.');
       return;
     }
 
@@ -305,8 +318,8 @@ class CoverageCollector {
     }
 
     _logger
-    ..detail('Breakpoint hit in isolate: $isolateId')
-    ..detail('Breakpoint ID: ${event.breakpoint?.id ?? 'Unknown'}');
+      ..detail('Breakpoint hit in isolate: $isolateId')
+      ..detail('Breakpoint ID: ${event.breakpoint?.id ?? 'Unknown'}');
 
     try {
       await _logBreakpointLocation(event, isolateId);
@@ -324,7 +337,8 @@ class CoverageCollector {
     }
 
     final scriptRef = event.topFrame!.location!.script!;
-    final script = await _service!.getObject(isolateId, scriptRef.id!) as Script?;
+    final script =
+        await _service!.getObject(isolateId, scriptRef.id!) as Script?;
 
     if (script != null) {
       final lineNumber = event.topFrame?.location?.line ?? 'Unknown';
@@ -341,7 +355,8 @@ class CoverageCollector {
       ..detail('functionCoverage: ${_options.functionCoverage}');
   }
 
-  Future<Map<String, dynamic>> _collectCoverageData(List<String> libraryNamesList) async {
+  Future<Map<String, dynamic>> _collectCoverageData(
+      List<String> libraryNamesList) async {
     return coverage.collect(
       Uri.parse(_currentObservatoryUrlHttp!),
       true,
@@ -356,13 +371,15 @@ class CoverageCollector {
 
   Future<void> _mergeCoverageData(Map<String, dynamic> data) async {
     _logger.detail('Collected coverage data; merging...');
-  
-    _addHitmap(await coverage.HitMap.parseJson(
-      data['coverage'] as List<Map<String, dynamic>>,
-      packagePath: Directory.current.path,
-      checkIgnoredLines: true,
-    ));
-  
+
+    _addHitmap(
+      await coverage.HitMap.parseJson(
+        data['coverage'] as List<Map<String, dynamic>>,
+        packagePath: Directory.current.path,
+        checkIgnoredLines: true,
+      ),
+    );
+
     _logger.detail('Done merging coverage data into global coverage map.');
   }
 
@@ -375,39 +392,43 @@ class CoverageCollector {
   }
 
   String Function(Map<String, coverage.HitMap>) _createDefaultFormatter(
-      coverage.Resolver resolver,
-      Directory? coverageDirectory,
-    ) {
-      return (hitmap) {
-        final packagePath = Directory.current.path;
-        final libraryPaths = _libraryNames
+    coverage.Resolver resolver,
+    Directory? coverageDirectory,
+  ) {
+    return (hitmap) {
+      final packagePath = Directory.current.path;
+      final libraryPaths = _libraryNames
           ?.map((e) => resolver.resolve('package:$e'))
           .whereType<String>()
           .toList();
 
-        final reportOn = coverageDirectory == null
+      final reportOn = coverageDirectory == null
           ? libraryPaths
           : <String>[coverageDirectory.path];
 
-        _logger
-          ..detail('Coverage report on: ${reportOn!.join(', ')}')
-          ..detail('Coverage package path: $packagePath');
+      _logger
+        ..detail('Coverage report on: ${reportOn!.join(', ')}')
+        ..detail('Coverage package path: $packagePath');
 
-        return hitmap.formatLcov(resolver, reportOn: reportOn, basePath: packagePath);
-      };
-    }
+      return hitmap.formatLcov(resolver,
+          reportOn: reportOn, basePath: packagePath);
+    };
+  }
 
-  Future<void> _writeCoverageDataToFile(String coveragePath, String coverageData) async {
+  Future<void> _writeCoverageDataToFile(
+      String coveragePath, String coverageData) async {
     File(coveragePath)
       ..createSync(recursive: true)
       ..writeAsStringSync(coverageData, flush: true);
-    _logger.detail('Wrote coverage data to $coveragePath (size=${coverageData.length})');
+    _logger.detail(
+        'Wrote coverage data to $coveragePath (size=${coverageData.length})');
   }
 
   Future<bool> _mergeCoverageWithBaseData(String coveragePath) async {
     const baseCoverageData = 'coverage/lcov.base.info';
     if (!File(baseCoverageData).existsSync()) {
-      _logger.err('Missing "$baseCoverageData". Unable to merge coverage data.');
+      _logger
+          .err('Missing "$baseCoverageData". Unable to merge coverage data.');
       return false;
     }
 
@@ -421,7 +442,8 @@ class CoverageCollector {
   Future<bool> _isLcovInstalled() async {
     final lcovResult = await _processManager.run(['which', 'lcov']);
     if (lcovResult.exitCode != 0) {
-      _logger.err('Missing "lcov" tool. Unable to merge coverage data.\n${_getLcovInstallMessage()}');
+      _logger.err(
+          'Missing "lcov" tool. Unable to merge coverage data.\n${_getLcovInstallMessage()}');
       return false;
     }
     return true;
@@ -436,15 +458,20 @@ class CoverageCollector {
     return 'Please install lcov.';
   }
 
-  Future<bool> _executeLcovMerge(String coveragePath, String baseCoverageData) async {
+  Future<bool> _executeLcovMerge(
+      String coveragePath, String baseCoverageData) async {
     final tempDir = Directory.systemTemp.createTempSync('patrol_coverage.');
     try {
-      final sourceFile = File(coveragePath).copySync(path.join(tempDir.path, 'lcov.source.info'));
+      final sourceFile = File(coveragePath)
+          .copySync(path.join(tempDir.path, 'lcov.source.info'));
       final result = await _processManager.run(<String>[
         'lcov',
-        '--add-tracefile', baseCoverageData,
-        '--add-tracefile', sourceFile.path,
-        '--output-file', coveragePath,
+        '--add-tracefile',
+        baseCoverageData,
+        '--add-tracefile',
+        sourceFile.path,
+        '--output-file',
+        coveragePath,
       ]);
       return result.exitCode == 0;
     } finally {
