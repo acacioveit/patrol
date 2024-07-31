@@ -16,7 +16,7 @@ import 'package:patrol_cli/src/devices.dart';
 import 'package:platform/platform.dart';
 import 'package:process/process.dart';
 
-import 'collect_coverage.dart';
+import 'coverage_collector.dart';
 import 'log_processor.dart';
 
 /// Provides functionality to build, install, run, and uninstall Android apps.
@@ -117,24 +117,30 @@ class AndroidTestBackend {
   }) async {
     _coverageOptions = coverageOptions;
 
-    _logger.info("Coverage options: ${coverageOptions.coverage}");
-    final logFilePath = path.join(
-      io.Directory.systemTemp.path,
-      'patrol_${device.id}_${DateTime.now().millisecondsSinceEpoch}.log',
-    );
+    String logFilePath;
+    LogProcessor? logProcessor;
 
-    final logProcessor = LogProcessor(
-      device.id,
-      logFilePath,
-      (uri) => _handleObservatoryUri(uri, device),
-      _logger,
-    );
+    if (coverageOptions.coverage) {
+      logFilePath = path.join(
+        io.Directory.systemTemp.path,
+        'patrol_${device.id}_${DateTime.now().millisecondsSinceEpoch}.log',
+      );
 
-    if (coverageOptions.coverage){
-      _coverageCollector.initialize(logger: _logger, processManager: _processManager, options: coverageOptions);
+      logProcessor = LogProcessor(
+        device.id,
+        logFilePath,
+        (uri) => _handleStartTest(uri, device),
+        _logger,
+      );
+
+      await _coverageCollector.initialize(
+        logger: _logger,
+        processManager: _processManager,
+        options: coverageOptions,
+      );
+
+      await logProcessor.start();
     }
-
-    await logProcessor.start();
 
     await _disposeScope.run((scope) async {
       final subject = '${options.description} on ${device.description}';
@@ -180,9 +186,8 @@ class AndroidTestBackend {
       final exitCode = await process.exitCode;
       await Future.wait([stdoutCompleter.future, stderrCompleter.future]);
 
-      await logProcessor.stop();
-
-      if (coverageOptions.coverage){
+      if (coverageOptions.coverage) {
+        await logProcessor!.stop();
         await _coverageCollector.stop();
       }
 
@@ -209,13 +214,16 @@ class AndroidTestBackend {
     await _adb.uninstall('$appId.test', device: device.id);
   }
 
-  Future<void> _handleObservatoryUri(String url, Device device) async {
-    _logger.info('Observatory URI found: $url');
+  Future<void> _handleStartTest(String url, Device device) async {
+    _logger.detail('observatory URI found: $url');
     final observatoryUri = Uri.parse(url);
     final fromHost = observatoryUri.port;
     final toDevice = observatoryUri.port;
     await _adb.forwardPorts(
-        fromHost: fromHost, toDevice: toDevice, device: device.id);
+      fromHost: fromHost,
+      toDevice: toDevice,
+      device: device.id,
+    );
     if (_coverageOptions.coverage) {
       _logger.info('Collecting coverage information');
       await _coverageCollector.start(url);
