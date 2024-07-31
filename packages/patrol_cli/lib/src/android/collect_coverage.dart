@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
+import 'package:coverage/coverage.dart' as coverage;
 import 'package:path/path.dart' as path;
 import 'package:patrol_cli/src/base/logger.dart';
 import 'package:patrol_cli/src/crossplatform/coverage_options.dart';
@@ -19,7 +19,6 @@ class CoverageCollector {
   final String _coverageDir = 'coverage';
   final String _mergedLcovFile = 'coverage/lcov.info';
   final String _tempDir = 'coverage/temp';
-  int _testCounter = 0;
   late final ProcessManager _processManager;
   bool _isRunning = false;
   final _completer = Completer<void>();
@@ -29,11 +28,15 @@ class CoverageCollector {
   late final CoverageOptions _options;
   late final Logger _logger;
 
-  void initialize({
+  Map<String, coverage.HitMap>? _globalHitmap;
+  Set<String>? libraryNames;
+  coverage.Resolver? resolver;
+
+  Future<void> initialize({
     required Logger logger,
     required ProcessManager processManager,
     CoverageOptions? options,
-  }) {
+  }) async {
     if (_isInitialized) {
       return;
     }
@@ -41,6 +44,15 @@ class CoverageCollector {
     _processManager = processManager;
     _options = options ?? const CoverageOptions();
     _isInitialized = true;
+    libraryNames = await _options.getCoveragePackages();
+  }
+
+  static Future<coverage.Resolver> getResolver(String? packagesPath) async {
+    try {
+      return await coverage.Resolver.create(packagesPath: packagesPath);
+    } on FileSystemException {
+      return coverage.Resolver.create();
+    }
   }
 
   Future<void> start(String currentObservatoryUrlHttp) async {
@@ -48,7 +60,6 @@ class CoverageCollector {
       throw StateError('CoverageCollector not initialized. Call initialize() first.');
     }
 
-    await _initializeCoverageDirectories();
     _currentObservatoryUrlHttp = currentObservatoryUrlHttp;
     _currentObservatoryUrlWs =
         _convertToWebSocketUrl(currentObservatoryUrlHttp);
@@ -80,12 +91,13 @@ class CoverageCollector {
     _isRunning = false;
     await _service?.dispose();
     _completer.complete();
-    await _mergeFinalCoverage();
-  }
+    final success = await collectCoverageData(_mergedLcovFile, mergeCoverageData: false);
 
-  Future<void> _initializeCoverageDirectories() async {
-    await Directory(_coverageDir).create(recursive: true);
-    await Directory(_tempDir).create(recursive: true);
+    if (success) {
+      _logger.info('Coverage data written to $_mergedLcovFile');
+    } else {
+      _logger.err('Failed to write coverage data to $_mergedLcovFile');
+    }
   }
 
   Future<void> _connectToVmService() async {
@@ -239,152 +251,150 @@ class CoverageCollector {
       }
 
       _logger.info('Collecting coverage...');
-      await _collectAndProcessCoverage(isolateId);
+      await collectCoverage(isolateId);
     } catch (e) {
       _logger.err('Error handling breakpoint: $e');
     }
   }
 
-  Future<void> _collectAndProcessCoverage(String isolateId) async {
-    _testCounter++;
-    final tempJsonFile = path.join(_tempDir, 'coverage_$_testCounter.json');
-    final tempLcovFile = path.join(_tempDir, 'lcov_$_testCounter.info');
-
-    _logger.info('Collecting coverage for uri: $_currentObservatoryUrlHttp');
-
-    final scope =  await _getPackgesPathFromNames(_options.scopeOutput);
-
-    try {
-      final args = [
-          'dart',
-          'pub',
-          'global',
-          'run',
-          'coverage:collect_coverage',
-          '--uri=$_currentObservatoryUrlHttp',
-          '--out=$tempJsonFile',
-          '--connect-timeout=${_options.connectTimeout}',
-          if (_options.scopeOutput.isNotEmpty) '--scope-output=${scope.join(',')}',
-          if (_options.waitPaused) '--wait-paused',
-          if (_options.resumeIsolates) '--resume-isolates',
-          if (_options.includeDart) '--include-dart',
-          if (_options.functionCoverage) '--function-coverage',
-          if (_options.branchCoverage) '--branch-coverage',
-      ];
-
-      _logger.info('Running: $args');
-      
-      final result = await _processManager.run(args);
-
-      if (result.exitCode != 0) {
-        _logger.err('Failed to collect coverage: ${result.stderr}');
-        return;
-      } 
-
-      _logger.info('Coverage collected successfully.');
-
-      // Convert JSON to LCOV
-      final formatResult = await _processManager.run(
-        <String>[
-          'dart',
-          'pub',
-          'global',
-          'run',
-          'coverage:format_coverage',
-          '-i',
-          tempJsonFile,
-          '-o',
-          tempLcovFile,
-          '--lcov',
-          '--packages=.dart_tool/package_config.json',
-        ],
-      );
-
-      _logger.info('Formatting coverage to LCOV...');
-
-      if (formatResult.exitCode != 0) {
-        _logger.err('Failed to format coverage: ${formatResult.stderr}');
-        return;
-      }
-
-      _logger.info('Coverage formatted to LCOV successfully.');
-    } catch (e) {
-      _logger.err('Error during coverage collection and processing: $e');
-    }
-  }
-
-  Future<List<String>> _getPackgesPathFromNames(List<String> packagesNames) async {
-    // Read packages path from package_config.json
-    var packages = <dynamic>[];
-    final packagesRootUri = <String>[];
-
-    // await _service.lookupResolvedPackageUris(isolateId, uris)
-
-    try{
-      final packageConfig = File('.dart_tool/package_config.json').readAsStringSync();
-      final packageConfigJson = jsonDecode(packageConfig) as Map<String, dynamic>;
-      packages = packageConfigJson['packages'] as List<dynamic>;
-    } catch (e) {
-      _logger.err('Error reading package_config.json: $e');
-      return [];
-    }
-
-    // Get root uri of packages
-    for (final package in packages) {
-      final packageUri = package['rootUri'] as String;
-      final packageName = package['name'] as String;
-
-      if (packagesNames.contains(packageName)) {
-        packagesRootUri.add(packageUri.replaceAll('file://', ''));
-      }
-    }
-
-    _logger.info('Packages fetched successfully.');
-
-    return packagesRootUri;
-  }
-
-  Future<void> _mergeLcovFiles(String newLcovFile) async {
-    if (!File(_mergedLcovFile).existsSync()) {
-      await File(newLcovFile).copy(_mergedLcovFile);
-      _logger.info('Created initial merged LCOV file: $_mergedLcovFile');
+  Future<void> collectCoverage(String isolateId) async {
+    _logger.info('Collecting coverage data from $_currentObservatoryUrlHttp...');
+    final libraryNamesList = libraryNames?.toList();
+    if (libraryNamesList == null) {
+      _logger.err('No library names found. Coverage collection aborted.');
       return;
     }
 
-    try {
-      final result = await _processManager.run(<String>[
-        'lcov',
-        '--add-tracefile',
-        _mergedLcovFile,
-        '--add-tracefile',
-        newLcovFile,
-        '--output-file',
-        _mergedLcovFile,
-      ]);
+    _logger
+      ..detail('Library names: ${libraryNamesList.join(',')}')
+      ..detail('branchCoverage: ${_options.branchCoverage}')
+      ..detail('functionCoverage: ${_options.functionCoverage}');
 
-      if (result.exitCode != 0) {
-        _logger.err('Failed to merge LCOV files: ${result.stderr}');
-        return;
-      }
+    final data = await collect(
+      Uri.parse(_currentObservatoryUrlHttp!),
+      libraryNames,
+      branchCoverage: _options.branchCoverage,
+      functionCoverage: _options.functionCoverage,
+    );
 
-      _logger.info('LCOV files merged successfully into $_mergedLcovFile');
-    } catch (e) {
-      _logger.err('Error merging LCOV files: $e');
+    _logger.info('Collected coverage data; merging...');
+  
+    _addHitmap(await coverage.HitMap.parseJson(
+        data['coverage'] as List<Map<String, dynamic>>,
+        packagePath: Directory.current.path,
+        checkIgnoredLines: true,
+      ),
+    );
+  
+    _logger.info('Done merging coverage data into global coverage map.');
+  }
+
+  void _addHitmap(Map<String, coverage.HitMap> hitmap) {
+    if (_globalHitmap == null) {
+    _globalHitmap = hitmap;
+    } else {
+    _globalHitmap!.merge(hitmap);
     }
   }
 
-  Future<void> _mergeFinalCoverage() async {
-    final tempFiles = Directory(_tempDir)
-        .listSync()
-        .where((entity) => entity.path.endsWith('.info'))
-        .map((entity) => entity.path)
-        .toList();
+  Future<String?> finalizeCoverage({
+    String Function(Map<String, coverage.HitMap> hitmap)? formatter,
+    coverage.Resolver? resolver,
+    Directory? coverageDirectory,
+    }) async {
+    if (_globalHitmap == null) {
+      return null;
+    }
+    if (formatter == null) {
+    final usedResolver = resolver ?? this.resolver ?? await getResolver('.dart_tool/package_config.json');
+    final packagePath = Directory.current.path;
+    final libraryPaths = libraryNames
+      ?.map((e) => usedResolver.resolve('package:$e'))
+      .whereType<String>()
+      .toList();
 
-    for (final file in tempFiles) {
-      await _mergeLcovFiles(file);
+    final reportOn = coverageDirectory == null
+      ? libraryPaths
+      : <String>[coverageDirectory.path];
+
+    _logger.detail("Coverage report on: ${reportOn!.join(', ')}");
+    _logger.detail("Coverage package path: $packagePath");
+    _logger.detail("Coverage resolver: $usedResolver");
+
+    formatter = (hitmap) => hitmap
+      .formatLcov(usedResolver, reportOn: reportOn, basePath: packagePath);
     }
 
-    _logger.info('Final coverage merge completed.');
+    final result = formatter(_globalHitmap!);
+    _globalHitmap = null;
+    return result;
+  }
+
+Future<bool> collectCoverageData(String? coveragePath, {bool mergeCoverageData = false, Directory? coverageDirectory}) async {
+    final coverageData = await finalizeCoverage(
+      coverageDirectory: coverageDirectory,
+    );
+    _logger.info('Coverage information collection complete');
+    if (coverageData == null) {
+      return false;
+    }
+
+    final coverageFile = File(coveragePath!)
+      ..createSync(recursive: true)
+      ..writeAsStringSync(coverageData, flush: true);
+    _logger.info('Wrote coverage data to $coveragePath (size=${coverageData.length})');
+
+    const baseCoverageData = 'coverage/lcov.base.info';
+    if (mergeCoverageData) {
+      if (!File(baseCoverageData).existsSync()) {
+        _logger.err('Missing "$baseCoverageData". Unable to merge coverage data.');
+        return false;
+      }
+
+      final lcovResult = await _processManager.run(['which', 'lcov']);
+      if (lcovResult.exitCode != 0) {
+        var installMessage = 'Please install lcov.';
+        if (Platform.isLinux) {
+          installMessage = 'Consider running "sudo apt-get install lcov".';
+        } else if (Platform.isMacOS) {
+          installMessage = 'Consider running "brew install lcov".';
+        }
+        _logger.err('Missing "lcov" tool. Unable to merge coverage data.\n$installMessage');
+        return false;
+      }
+
+      final tempDir = Directory.systemTemp.createTempSync('patrol_coverage.');
+      try {
+        final sourceFile = coverageFile.copySync(path.join(tempDir.path, 'lcov.source.info'));
+        final result = await _processManager.run(<String>[
+          'lcov',
+          '--add-tracefile', baseCoverageData,
+          '--add-tracefile', sourceFile.path,
+          '--output-file', coverageFile.path,
+        ]);
+        if (result.exitCode != 0) {
+          return false;
+        }
+      } finally {
+        tempDir.deleteSync(recursive: true);
+      }
+    }
+    return true;
+  }
+
+  Future<Map<String, dynamic>> collect(Uri serviceUri, Set<String>? libraryNames, {
+    bool waitPaused = false,
+    bool resume = true,
+    String? debugName,
+    bool forceSequential = false,
+    bool branchCoverage = false,
+    bool functionCoverage = false,
+    }) {
+    return coverage.collect(
+      serviceUri, resume, waitPaused, false, libraryNames,
+      branchCoverage: branchCoverage,
+      functionCoverage: functionCoverage,
+    );
   }
 
   String _convertToWebSocketUrl(String observatoryUri) {
