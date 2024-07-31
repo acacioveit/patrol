@@ -6,6 +6,7 @@ import 'package:patrol_cli/src/base/extensions/core.dart';
 import 'package:patrol_cli/src/base/logger.dart';
 import 'package:patrol_cli/src/commands/dart_define_utils.dart';
 import 'package:patrol_cli/src/crossplatform/app_options.dart';
+import 'package:patrol_cli/src/crossplatform/coverage_options.dart';
 import 'package:patrol_cli/src/dart_defines_reader.dart';
 import 'package:patrol_cli/src/devices.dart';
 import 'package:patrol_cli/src/ios/ios_test_backend.dart';
@@ -42,6 +43,10 @@ class TestCommand extends PatrolCommand {
     usesDartDefineFromFileOption();
     usesLabelOption();
     usesWaitOption();
+    
+    useCoverageOption();
+    usefunctionCoverageOption();
+    useScopeOutputOption();
 
     usesUninstallOption();
 
@@ -148,6 +153,14 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
 
     final dartDefineFromFilePaths = stringsArg('dart-define-from-file');
 
+    final coverage = boolArg('coverage');
+
+    _logger.detail('Received coverage: $coverage');
+
+    final functionCoverage = boolArg('function-coverage');
+
+    final scopeOutput = stringsArg('scope-output');
+
     final mergedDartDefines = mergeDartDefines(
       dartDefineFromFilePaths,
       dartDefines,
@@ -175,12 +188,21 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       simulator: !device.real,
     );
 
+    final coverageOpts = CoverageOptions(
+      coverage: coverage,
+      functionCoverage: functionCoverage,
+      scopeOutput: scopeOutput,
+    );
+
+    _logger.detail('Coverage options: ${coverageOpts.coverage}');
+
     await _build(androidOpts, iosOpts, device);
     await _preExecute(androidOpts, iosOpts, device, uninstall);
     final allPassed = await _execute(
       flutterOpts,
       androidOpts,
       iosOpts,
+      coverageOpts,
       uninstall: uninstall,
       device: device,
     );
@@ -255,7 +277,8 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
   Future<bool> _execute(
     FlutterAppOptions flutterOpts,
     AndroidAppOptions android,
-    IOSAppOptions iosOpts, {
+    IOSAppOptions iosOpts, 
+    CoverageOptions coverageOpts,{
     required bool uninstall,
     required Device device,
   }) async {
@@ -264,7 +287,7 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
 
     switch (device.targetPlatform) {
       case TargetPlatform.android:
-        action = () => _androidTestBackend.execute(android, device);
+        action = () => _androidTestBackend.execute(android, device, coverageOptions: coverageOpts);
         final package = android.packageName;
         if (package != null && uninstall) {
           finalizer = () => _androidTestBackend.uninstall(package, device);

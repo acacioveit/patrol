@@ -137,6 +137,28 @@ abstract class PatrolCommand extends Command<int> {
     );
   }
 
+  void useCoverageOption() {
+    argParser.addFlag(
+      'coverage',
+      help: 'Whether to collect coverage information.',
+    );
+  }
+
+  void usefunctionCoverageOption() {
+    argParser.addFlag(
+      'function-coverage',
+      help: 'Collect function coverage info',
+    );
+  }
+
+  void useScopeOutputOption() {
+    argParser.addMultiOption(
+      'scope-output',
+      help: 'Restrict coverage results so that only scripts that start with the provided package path are considered',
+      valueHelp: 'lib/',
+    );
+  }
+
   /// Gets the parsed command-line flag named [name] as a `bool`.
   ///
   /// If no flag named [name] was added to the `ArgParser`, an [ArgumentError]

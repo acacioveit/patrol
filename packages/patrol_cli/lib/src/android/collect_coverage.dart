@@ -1,38 +1,53 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
 import 'package:patrol_cli/src/base/logger.dart';
+import 'package:patrol_cli/src/crossplatform/coverage_options.dart';
 import 'package:process/process.dart';
 import 'package:vm_service/vm_service.dart';
 import 'package:vm_service/vm_service_io.dart';
 
-class CoverageCollector {
+class CoverageCollector { 
+  factory CoverageCollector() => _instance;
   // Factory constructor to get the singleton instance
-  factory CoverageCollector() {
-    _instance ??= CoverageCollector._internal();
-    return _instance!;
-  }
-
-  // Private constructor
   CoverageCollector._internal();
+  static final CoverageCollector _instance = CoverageCollector._internal();
 
-  static CoverageCollector? _instance;
   VmService? _service;
-  final _logger = Logger();
-
   final String _coverageDir = 'coverage';
   final String _mergedLcovFile = 'coverage/lcov.info';
   final String _tempDir = 'coverage/temp';
   int _testCounter = 0;
-  final ProcessManager _processManager = const LocalProcessManager();
+  late final ProcessManager _processManager;
   bool _isRunning = false;
   final _completer = Completer<void>();
   String? _currentObservatoryUrlWs;
   String? _currentObservatoryUrlHttp;
+  bool _isInitialized = false;
+  late final CoverageOptions _options;
+  late final Logger _logger;
+
+  void initialize({
+    required Logger logger,
+    required ProcessManager processManager,
+    CoverageOptions? options,
+  }) {
+    if (_isInitialized) {
+      return;
+    }
+    _logger = logger;
+    _processManager = processManager;
+    _options = options ?? const CoverageOptions();
+    _isInitialized = true;
+  }
 
   Future<void> start(String currentObservatoryUrlHttp) async {
-    _logger.info('Starting TestMonitor...');
+    if (!_isInitialized) {
+      throw StateError('CoverageCollector not initialized. Call initialize() first.');
+    }
+
     await _initializeCoverageDirectories();
     _currentObservatoryUrlHttp = currentObservatoryUrlHttp;
     _currentObservatoryUrlWs =
@@ -60,16 +75,12 @@ class CoverageCollector {
 
   Future<void> stop() async {
     if (!_isRunning) {
-      _logger.warn('TestMonitor is not running.');
       return;
     }
-
-    _logger.info('Stopping TestMonitor...');
     _isRunning = false;
     await _service?.dispose();
     _completer.complete();
     await _mergeFinalCoverage();
-    _logger.info('TestMonitor stopped.');
   }
 
   Future<void> _initializeCoverageDirectories() async {
@@ -240,29 +251,35 @@ class CoverageCollector {
     final tempLcovFile = path.join(_tempDir, 'lcov_$_testCounter.info');
 
     _logger.info('Collecting coverage for uri: $_currentObservatoryUrlHttp');
+
+    final scope =  await _getPackgesPathFromNames(_options.scopeOutput);
+
     try {
-      // Collect coverage data
-      final collectResult = await _processManager.run(
-        <String>[
+      final args = [
           'dart',
           'pub',
           'global',
           'run',
           'coverage:collect_coverage',
           '--uri=$_currentObservatoryUrlHttp',
-          '-o',
-          tempJsonFile,
-          // '--wait-paused',
-          '--resume-isolates',
-          '--scope-output=infinitepay_dashboard_flutter',
-          '--connect-timeout=10'
-        ],
-      );
+          '--out=$tempJsonFile',
+          '--connect-timeout=${_options.connectTimeout}',
+          if (_options.scopeOutput.isNotEmpty) '--scope-output=${scope.join(',')}',
+          if (_options.waitPaused) '--wait-paused',
+          if (_options.resumeIsolates) '--resume-isolates',
+          if (_options.includeDart) '--include-dart',
+          if (_options.functionCoverage) '--function-coverage',
+          if (_options.branchCoverage) '--branch-coverage',
+      ];
 
-      if (collectResult.exitCode != 0) {
-        _logger.err('Failed to collect coverage: ${collectResult.stderr}');
+      _logger.info('Running: $args');
+      
+      final result = await _processManager.run(args);
+
+      if (result.exitCode != 0) {
+        _logger.err('Failed to collect coverage: ${result.stderr}');
         return;
-      }
+      } 
 
       _logger.info('Coverage collected successfully.');
 
@@ -279,7 +296,7 @@ class CoverageCollector {
           '-o',
           tempLcovFile,
           '--lcov',
-          '--report-on=lib',
+          '--packages=.dart_tool/package_config.json',
         ],
       );
 
@@ -294,6 +311,37 @@ class CoverageCollector {
     } catch (e) {
       _logger.err('Error during coverage collection and processing: $e');
     }
+  }
+
+  Future<List<String>> _getPackgesPathFromNames(List<String> packagesNames) async {
+    // Read packages path from package_config.json
+    var packages = <dynamic>[];
+    final packagesRootUri = <String>[];
+
+    // await _service.lookupResolvedPackageUris(isolateId, uris)
+
+    try{
+      final packageConfig = File('.dart_tool/package_config.json').readAsStringSync();
+      final packageConfigJson = jsonDecode(packageConfig) as Map<String, dynamic>;
+      packages = packageConfigJson['packages'] as List<dynamic>;
+    } catch (e) {
+      _logger.err('Error reading package_config.json: $e');
+      return [];
+    }
+
+    // Get root uri of packages
+    for (final package in packages) {
+      final packageUri = package['rootUri'] as String;
+      final packageName = package['name'] as String;
+
+      if (packagesNames.contains(packageName)) {
+        packagesRootUri.add(packageUri.replaceAll('file://', ''));
+      }
+    }
+
+    _logger.info('Packages fetched successfully.');
+
+    return packagesRootUri;
   }
 
   Future<void> _mergeLcovFiles(String newLcovFile) async {

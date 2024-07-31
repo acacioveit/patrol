@@ -11,6 +11,7 @@ import 'package:patrol_cli/src/base/exceptions.dart';
 import 'package:patrol_cli/src/base/logger.dart';
 import 'package:patrol_cli/src/base/process.dart';
 import 'package:patrol_cli/src/crossplatform/app_options.dart';
+import 'package:patrol_cli/src/crossplatform/coverage_options.dart';
 import 'package:patrol_cli/src/devices.dart';
 import 'package:platform/platform.dart';
 import 'package:process/process.dart';
@@ -44,9 +45,8 @@ class AndroidTestBackend {
   final FileSystem _fs;
   final DisposeScope _disposeScope;
   final Logger _logger;
-
-  CoverageCollector? _testMonitor;
-  final Completer<void> _testMonitorCompleter = Completer<void>();
+  late CoverageOptions _coverageOptions;
+  final CoverageCollector _coverageCollector = CoverageCollector();
 
   Future<void> build(AndroidAppOptions options) async {
     await _disposeScope.run((scope) async {
@@ -113,7 +113,11 @@ class AndroidTestBackend {
     AndroidAppOptions options,
     Device device, {
     bool interruptible = false,
+    CoverageOptions coverageOptions = const CoverageOptions(),
   }) async {
+    _coverageOptions = coverageOptions;
+
+    _logger.info("Coverage options: ${coverageOptions.coverage}");
     final logFilePath = path.join(
       io.Directory.systemTemp.path,
       'patrol_${device.id}_${DateTime.now().millisecondsSinceEpoch}.log',
@@ -126,7 +130,9 @@ class AndroidTestBackend {
       _logger,
     );
 
-    _testMonitor = CoverageCollector();
+    if (coverageOptions.coverage){
+      _coverageCollector.initialize(logger: _logger, processManager: _processManager, options: coverageOptions);
+    }
 
     await logProcessor.start();
 
@@ -175,7 +181,10 @@ class AndroidTestBackend {
       await Future.wait([stdoutCompleter.future, stderrCompleter.future]);
 
       await logProcessor.stop();
-      await _testMonitor?.stop();
+
+      if (coverageOptions.coverage){
+        await _coverageCollector.stop();
+      }
 
       if (exitCode == 0) {
         task.complete('Completed executing $subject');
@@ -207,6 +216,9 @@ class AndroidTestBackend {
     final toDevice = observatoryUri.port;
     await _adb.forwardPorts(
         fromHost: fromHost, toDevice: toDevice, device: device.id);
-    await _testMonitor!.start(url);
+    if (_coverageOptions.coverage) {
+      _logger.info('Collecting coverage information');
+      await _coverageCollector.start(url);
+    }
   }
 }
