@@ -15,6 +15,7 @@ void main() {
           buildMode: BuildMode.debug,
           flavor: null,
           dartDefines: {},
+          dartDefineFromFilePaths: [],
         );
         options = AndroidAppOptions(flutter: flutterOptions);
 
@@ -36,6 +37,7 @@ void main() {
           buildMode: BuildMode.release,
           flavor: null,
           dartDefines: {},
+          dartDefineFromFilePaths: [],
         );
         options = AndroidAppOptions(flutter: flutterOpts);
 
@@ -65,6 +67,7 @@ void main() {
           buildMode: BuildMode.release,
           flavor: 'dev',
           dartDefines: dartDefines,
+          dartDefineFromFilePaths: [],
         );
         options = AndroidAppOptions(flutter: flutterOpts);
 
@@ -87,6 +90,7 @@ void main() {
           buildMode: BuildMode.debug,
           flavor: 'dev',
           dartDefines: dartDefines,
+          dartDefineFromFilePaths: [],
         );
         options = AndroidAppOptions(flutter: flutterOpts);
 
@@ -114,6 +118,7 @@ void main() {
         buildMode: BuildMode.debug,
         flavor: null,
         dartDefines: {},
+        dartDefineFromFilePaths: [],
       );
 
       setUp(() {
@@ -194,6 +199,7 @@ void main() {
             'PASSWORD': 'ny4ncat',
             'foo': 'bar',
           },
+          dartDefineFromFilePaths: [],
         );
 
         setUp(() {
