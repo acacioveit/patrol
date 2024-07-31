@@ -12,7 +12,7 @@ environment:
 dependencies:
   adb: ^0.2.5
   ansi_styles: ^0.3.2
-  args: ^2.3.1
+  args: ^2.4.0
   ci: ^0.1.0
   cli_completion: ^0.3.0
   collection: ^1.17.1
@@ -23,8 +23,8 @@ dependencies:
   glob: ^2.1.1
   http: ^0.13.5
   mason_logger: '>=0.2.4 <=0.2.5'
-  meta: ^1.8.0
-  path: 
+  meta: ^1.9.0
+  path: ^1.8.3
   platform: ^3.1.0
   process: ^4.2.4
   pub_updater: ^0.2.4
