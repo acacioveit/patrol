@@ -282,7 +282,7 @@ class CoverageCollector {
         bracketCount += '{'.allMatches(lines[i]).length;
         bracketCount -= '}'.allMatches(lines[i]).length;
         if (bracketCount == 0) {
-          return i;
+          return i + 1;
         }
       }
     }
