@@ -394,6 +394,7 @@ Future<bool> collectCoverageData(String? coveragePath, {bool mergeCoverageData =
       serviceUri, resume, waitPaused, false, libraryNames,
       branchCoverage: branchCoverage,
       functionCoverage: functionCoverage,
+      timeout: const Duration(minutes: 5),
     );
   }
 
