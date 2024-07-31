@@ -46,7 +46,9 @@ class TestCommand extends PatrolCommand {
     
     useCoverageOption();
     usefunctionCoverageOption();
-    useScopeOutputOption();
+    useMergeCoverageOption();
+    useCoveragePathOption();
+    useCoveragePackageOption();
 
     usesUninstallOption();
 
@@ -158,8 +160,9 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     _logger.detail('Received coverage: $coverage');
 
     final functionCoverage = boolArg('function-coverage');
-
-    final scopeOutput = stringsArg('scope-output');
+    final mergeCoverage = boolArg('merge-coverage');
+    final coveragePath = stringArg('coverage-path');
+    final packagesRegExps = stringsArg('coverage-package');
 
     final mergedDartDefines = mergeDartDefines(
       dartDefineFromFilePaths,
@@ -191,7 +194,10 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     final coverageOpts = CoverageOptions(
       coverage: coverage,
       functionCoverage: functionCoverage,
-      scopeOutput: scopeOutput,
+      mergeCoverage: mergeCoverage,
+      coveragePath: coveragePath,
+      packagesRegExps: packagesRegExps,
+      appName: config.android.appName ?? config.ios.appName ?? '',
     );
 
     _logger.detail('Coverage options: ${coverageOpts.coverage}');
