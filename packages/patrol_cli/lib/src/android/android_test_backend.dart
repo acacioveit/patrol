@@ -153,38 +153,18 @@ class AndroidTestBackend {
         workingDirectory: _fs.currentDirectory.childDirectory('android').path,
       )
         ..disposedBy(scope);
-
-      final stdoutCompleter = Completer<void>();
-      final stderrCompleter = Completer<void>();
-
-      process.stdout
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen(
-        (line) {
-          _logger.detail('\t: $line');
-        },
-        onDone: stdoutCompleter.complete,
-      );
-
-      process.stderr
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .listen(
-        (line) {
-          const prefix = 'There were failing tests. ';
-          if (line.contains(prefix)) {
-            final msg = line.substring(prefix.length + 2);
-            _logger.err('\t$msg');
-          } else {
-            _logger.detail('\t$line');
-          }
-        },
-        onDone: stderrCompleter.complete,
-      );
+      process.listenStdOut((l) => _logger.detail('\t: $l')).disposedBy(scope);
+      process.listenStdErr((l) {
+        const prefix = 'There were failing tests. ';
+        if (l.contains(prefix)) {
+          final msg = l.substring(prefix.length + 2);
+          _logger.err('\t$msg');
+        } else {
+          _logger.detail('\t$l');
+        }
+      }).disposedBy(scope);
 
       final exitCode = await process.exitCode;
-      await Future.wait([stdoutCompleter.future, stderrCompleter.future]);
 
       if (coverageOptions.coverage) {
         await logProcessor!.stop();
