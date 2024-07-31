@@ -165,7 +165,6 @@ class AndroidTestBackend {
       }).disposedBy(scope);
 
       final exitCode = await process.exitCode;
-
       if (coverageOptions.coverage) {
         await logProcessor!.stop();
         await _coverageCollector.stop();
