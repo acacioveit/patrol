@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:patrol_cli/src/base/logger.dart';
 
+/// Processes logcat output, writing it to a file and looking for observatory
 class LogProcessor {
   LogProcessor(
       this.deviceId, this.logFilePath, this.onObservatoryUri, this._logger);
@@ -15,11 +16,13 @@ class LogProcessor {
   StreamSubscription<dynamic>? _logSubscription;
   IOSink? _logSink;
 
+  /// Starts the logcat stream and writes to a file
   Future<void> start() async {
     await _clearLogcatCache();
     await _startLogcatStream();
   }
 
+  /// Stops the logcat stream
   Future<void> stop() async {
     await _logSubscription?.cancel();
     await _logSink?.close();
