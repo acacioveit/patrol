@@ -45,7 +45,7 @@ class TestCommand extends PatrolCommand {
     usesWaitOption();
     
     useCoverageOption();
-    usefunctionCoverageOption();
+    useFunctionCoverageOption();
     useMergeCoverageOption();
     useCoveragePathOption();
     useCoveragePackageOption();

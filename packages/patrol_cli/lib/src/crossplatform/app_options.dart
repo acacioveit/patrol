@@ -2,6 +2,7 @@ import 'dart:convert' show base64Encode, utf8;
 
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' show basename;
+import 'package:patrol_cli/src/crossplatform/coverage_options.dart';
 import 'package:patrol_cli/src/devices.dart';
 import 'package:patrol_cli/src/ios/ios_test_backend.dart';
 
@@ -46,10 +47,12 @@ class FlutterAppOptions {
 class AndroidAppOptions {
   const AndroidAppOptions({
     required this.flutter,
+    this.coverage,
     this.packageName,
   });
 
   final FlutterAppOptions flutter;
+  final CoverageOptions? coverage;
   final String? packageName;
 
   String get description => 'apk with entrypoint ${basename(flutter.target)}';
