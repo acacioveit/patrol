@@ -1,15 +1,23 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Process;
+import 'dart:io' as io;
 
 import 'package:adb/adb.dart';
 import 'package:dispose_scope/dispose_scope.dart';
 import 'package:file/file.dart';
+import 'package:path/path.dart' as path;
 import 'package:patrol_cli/src/base/exceptions.dart';
 import 'package:patrol_cli/src/base/logger.dart';
 import 'package:patrol_cli/src/base/process.dart';
 import 'package:patrol_cli/src/crossplatform/app_options.dart';
+import 'package:patrol_cli/src/crossplatform/coverage_options.dart';
 import 'package:patrol_cli/src/devices.dart';
 import 'package:platform/platform.dart';
 import 'package:process/process.dart';
+
+import 'coverage_collector.dart';
+import 'log_processor.dart';
 
 /// Provides functionality to build, install, run, and uninstall Android apps.
 ///
@@ -37,6 +45,8 @@ class AndroidTestBackend {
   final FileSystem _fs;
   final DisposeScope _disposeScope;
   final Logger _logger;
+  late CoverageOptions _coverageOptions;
+  final CoverageCollector _coverageCollector = CoverageCollector();
 
   Future<void> build(AndroidAppOptions options) async {
     await _disposeScope.run((scope) async {
@@ -54,6 +64,7 @@ class AndroidTestBackend {
         workingDirectory: _fs.currentDirectory.childDirectory('android').path,
       )
         ..disposedBy(scope);
+
       process.listenStdOut((l) => _logger.detail('\t: $l')).disposedBy(scope);
       process.listenStdErr((l) => _logger.err('\t$l')).disposedBy(scope);
       exitCode = await process.exitCode;
@@ -102,7 +113,35 @@ class AndroidTestBackend {
     AndroidAppOptions options,
     Device device, {
     bool interruptible = false,
+    CoverageOptions coverageOptions = const CoverageOptions(),
   }) async {
+    _coverageOptions = coverageOptions;
+
+    String logFilePath;
+    LogProcessor? logProcessor;
+
+    if (coverageOptions.coverage) {
+      logFilePath = path.join(
+        io.Directory.systemTemp.path,
+        'patrol_${device.id}_${DateTime.now().millisecondsSinceEpoch}.log',
+      );
+
+      logProcessor = LogProcessor(
+        device.id,
+        logFilePath,
+        (uri) => _handleStartTest(uri, device),
+        _logger,
+      );
+
+      await _coverageCollector.initialize(
+        logger: _logger,
+        processManager: _processManager,
+        options: coverageOptions,
+      );
+
+      await logProcessor.start();
+    }
+
     await _disposeScope.run((scope) async {
       final subject = '${options.description} on ${device.description}';
       final task = _logger.task('Executing tests of $subject');
@@ -126,6 +165,11 @@ class AndroidTestBackend {
       }).disposedBy(scope);
 
       final exitCode = await process.exitCode;
+      if (coverageOptions.coverage) {
+        await logProcessor!.stop();
+        await _coverageCollector.stop();
+      }
+
       if (exitCode == 0) {
         task.complete('Completed executing $subject');
       } else if (exitCode != 0 && interruptible) {
@@ -147,5 +191,21 @@ class AndroidTestBackend {
     await _adb.uninstall(appId, device: device.id);
     _logger.detail('Uninstalling $appId.test from ${device.name}');
     await _adb.uninstall('$appId.test', device: device.id);
+  }
+
+  Future<void> _handleStartTest(String url, Device device) async {
+    _logger.detail('observatory URI found: $url');
+    final observatoryUri = Uri.parse(url);
+    final fromHost = observatoryUri.port;
+    final toDevice = observatoryUri.port;
+    await _adb.forwardPorts(
+      fromHost: fromHost,
+      toDevice: toDevice,
+      device: device.id,
+    );
+    if (_coverageOptions.coverage) {
+      _logger.info('Collecting coverage information');
+      await _coverageCollector.start(url);
+    }
   }
 }
