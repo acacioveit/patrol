@@ -7,21 +7,17 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:patrol/src/common.dart';
-import 'package:patrol/src/coverage_options.dart';
-import 'package:patrol/src/logger.dart';
+import 'package:patrol/src/coverage/coverage_options.dart';
 import 'package:patrol/src/native/contracts/contracts.dart';
 import 'package:patrol/src/native/contracts/patrol_app_service_server.dart';
-import 'package:path_provider/path_provider.dart';
-
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
-import '../coverage_collector.dart';
+
 import '../constants.dart' as constans;
+import '../coverage/coverage_collector.dart';
 
 const _port = 8082;
 const _idleTimeout = Duration(hours: 2);
-
-int  _countTest = 0;
 
 class _TestExecutionResult {
   const _TestExecutionResult({required this.passed, required this.details});
@@ -32,21 +28,6 @@ class _TestExecutionResult {
 
 /// Starts the gRPC server that runs the [PatrolAppService].
 Future<void> runAppService(PatrolAppService service) async {
-  print("RunAppService: $_countTest");
-  print("coverage: ${constans.coverage}");
-  print("functionCoverage: ${constans.functionCoverage}");
-  print("coveragePackages: ${constans.coveragePackageList}");
-
-  // convert to string from base64
-  final packageConfig = utf8.decode(base64.decode(constans.packageConfig));
-  final coverageOptions = CoverageOptions(
-    coverage: constans.coverage,
-    functionCoverage:  constans.functionCoverage,
-    coveragePackageConfig: packageConfig,
-  );
-
-  await CoverageCollector().initialize(logger: Logger(), options: coverageOptions);
-  await CoverageCollector().startInBackground();
   final pipeline = const shelf.Pipeline()
       .addMiddleware(shelf.logRequests())
       .addHandler(service.handle);
@@ -62,9 +43,25 @@ Future<void> runAppService(PatrolAppService service) async {
 
   final address = server.address;
 
+  if (constans.coverage) {
+    await _startCoverageService();
+  }
+
   print(
     'PatrolAppService started, address: ${address.address}, host: ${address.host}, port: ${server.port}',
   );
+}
+
+Future<void> _startCoverageService() async {
+  final packageConfig = utf8.decode(base64.decode(constans.packageConfig));
+  final coverageOptions = CoverageOptions(
+      // ignore: avoid_redundant_argument_values
+      functionCoverage:  constans.functionCoverage,
+      coveragePackageConfig: packageConfig,
+  );
+
+  await CoverageCollector().initialize(options: coverageOptions);
+  await CoverageCollector().startInBackground();
 }
 
 /// Implements a stateful gRPC service for querying and executing Dart tests.
@@ -106,9 +103,6 @@ class PatrolAppService extends PatrolAppServiceServer {
     required bool passed,
     required String? details,
   }) async {
-    print('PatrolAppService.markDartTestAsCompleted(): $dartFileName');
-    _countTest++;
-    print("MarkDartTestAsCompleted: $_countTest");
     assert(
       _testExecutionRequested.isCompleted,
       'Tried to mark a test as completed, but no tests were requested to run',
@@ -121,7 +115,9 @@ class PatrolAppService extends PatrolAppServiceServer {
       'that was most recently requested to run was $requestedDartTestName',
     );
 
-     await CoverageCollector().handleTestCompletion(dartFileName);
+     if(constans.coverage){
+        await CoverageCollector().handleTestCompletion(dartFileName);
+     }
 
     _testExecutionCompleted.complete(
       _TestExecutionResult(passed: passed, details: details),

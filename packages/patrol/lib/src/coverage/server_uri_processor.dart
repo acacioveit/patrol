@@ -1,26 +1,28 @@
 import 'dart:async';
-import 'package:logging/logging.dart';
-import 'package:shelf/shelf.dart' as shelf;
-import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'dart:developer' as developer;
-import 'dart:io';
 
+/// A class that processes the server URI by periodically checking for it.
 class ServerUriProcessor {
+  /// Creates an instance of [ServerUriProcessor] with a callback function to handle the server URI.
   ServerUriProcessor(this.onServerUri);
+
+  /// A callback function that handles the server URI when it's found.
   final void Function(Uri) onServerUri;
-  final Logger _logger = Logger('ServerUriProcessor');
+
   Timer? _checkTimer;
 
+  /// Starts the server URI processing by initiating periodic checks.
   Future<void> start() async {
     _startListening();
   }
 
+  /// Stops the server URI processing by cancelling the periodic checks.
   Future<void> stop() async {
     _checkTimer?.cancel();
   }
 
   void _startListening() {
-    _checkTimer = Timer.periodic(Duration(seconds: 1), (Timer timer) {
+    _checkTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _checkForServerUri();
     });
   }
@@ -33,7 +35,7 @@ class ServerUriProcessor {
         await stop();
       }
     } catch (e) {
-      _logger.warning('Error getting serverUri: $e');
+      developer.log('Error checking for server URI: $e');
     }
   }
 }
