@@ -111,13 +111,20 @@ class BuildAndroidCommand extends PatrolCommand {
       packagesRegExps: packagesRegExps,
     );
 
-    final coveragePackages = await coverageOpts.getCoveragePackages();
-    final coveragePackagesList = coveragePackages.toList().join(',');
-    _logger.detail('Received coverage packages: $coveragePackagesList');
-    final packageConfig = await coverageOpts.getPackageConfigData();
-    // convert to base64 to avoid issues with special characters
-    final packageConfigBase64 = base64Encode(utf8.encode(packageConfig));
-    _logger.detail('Received package config: $packageConfig');
+    var coverageDefines = <String, String>{};
+    if (coverage) {
+      final coveragePackages = await coverageOpts.getCoveragePackages();
+      final coveragePackagesList = coveragePackages.toList().join(',');
+      _logger.detail('Received coverage packages: $coveragePackagesList');
+      final packageConfig = await coverageOpts.getPackageConfigData();
+      // convert to base64 to avoid issues with special characters
+      final packageConfigBase64 = base64Encode(utf8.encode(packageConfig));
+      _logger.detail('Received package config: $packageConfig');
+      coverageDefines = {
+        'PATROL_COVERAGE_PACKAGES': coveragePackagesList,
+        'PATROL_PACKAGE_CONFIG': packageConfigBase64,
+      };
+    }
 
     final internalDartDefines = {
       'PATROL_WAIT': defaultWait.toString(),
@@ -125,10 +132,9 @@ class BuildAndroidCommand extends PatrolCommand {
       'PATROL_ANDROID_APP_NAME': config.android.appName,
       'PATROL_TEST_LABEL_ENABLED': displayLabel.toString(),
       'INTEGRATION_TEST_SHOULD_REPORT_RESULTS_TO_NATIVE': 'false',
-      'PATROL_COVERAGE': coverageOpts.coverage.toString(),
-      'PATROL_FUNCTION_COVERAGE': coverageOpts.functionCoverage.toString(),
-      'PATROL_COVERAGE_PACKAGES': coveragePackagesList,
-      'PATROL_PACKAGE_CONFIG': packageConfigBase64,
+      'PATROL_COVERAGE': coverage.toString(),
+      'PATROL_FUNCTION_COVERAGE': functionCoverage.toString(),
+      ...coverageDefines,
     }.withNullsRemoved();
 
     final dartDefines = {...customDartDefines, ...internalDartDefines};
