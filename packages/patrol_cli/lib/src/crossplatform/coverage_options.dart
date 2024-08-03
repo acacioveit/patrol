@@ -92,4 +92,13 @@ class CoverageOptions {
       throwToolExit('Failed to read package_config.json. $e');
     }
   }
+
+  Future<String> getPackageConfigData() async {
+    try {
+      final packagesConfig = File('.dart_tool/package_config.json').readAsStringSync();
+      return packagesConfig;
+    } catch (e) {
+      throwToolExit('Failed to read package_config.json. $e');
+    }
+  }
 }

@@ -3,14 +3,18 @@
 // TODO: Use a logger instead of print
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:patrol/src/common.dart';
+import 'package:patrol/src/coverage/coverage_options.dart';
 import 'package:patrol/src/native/contracts/contracts.dart';
 import 'package:patrol/src/native/contracts/patrol_app_service_server.dart';
-
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
+
+import '../constants.dart' as constans;
+import '../coverage/coverage_collector.dart';
 
 const _port = 8082;
 const _idleTimeout = Duration(hours: 2);
@@ -39,9 +43,25 @@ Future<void> runAppService(PatrolAppService service) async {
 
   final address = server.address;
 
+  if (constans.coverage) {
+    await _startCoverageService();
+  }
+
   print(
     'PatrolAppService started, address: ${address.address}, host: ${address.host}, port: ${server.port}',
   );
+}
+
+Future<void> _startCoverageService() async {
+  final packageConfig = utf8.decode(base64.decode(constans.packageConfig));
+  final coverageOptions = CoverageOptions(
+      // ignore: avoid_redundant_argument_values
+      functionCoverage:  constans.functionCoverage,
+      coveragePackageConfig: packageConfig,
+  );
+
+  await CoverageCollector().initialize(options: coverageOptions);
+  await CoverageCollector().startInBackground();
 }
 
 /// Implements a stateful gRPC service for querying and executing Dart tests.
@@ -83,7 +103,6 @@ class PatrolAppService extends PatrolAppServiceServer {
     required bool passed,
     required String? details,
   }) async {
-    print('PatrolAppService.markDartTestAsCompleted(): $dartFileName');
     assert(
       _testExecutionRequested.isCompleted,
       'Tried to mark a test as completed, but no tests were requested to run',
@@ -95,6 +114,10 @@ class PatrolAppService extends PatrolAppServiceServer {
       'Tried to mark test $dartFileName as completed, but the test '
       'that was most recently requested to run was $requestedDartTestName',
     );
+
+     if(constans.coverage){
+        await CoverageCollector().handleTestCompletion(dartFileName);
+     }
 
     _testExecutionCompleted.complete(
       _TestExecutionResult(passed: passed, details: details),

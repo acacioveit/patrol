@@ -144,7 +144,7 @@ abstract class PatrolCommand extends Command<int> {
     );
   }
 
-  void usefunctionCoverageOption() {
+  void useFunctionCoverageOption() {
     argParser.addFlag(
       'function-coverage',
       help: 'Collect function coverage info',
