@@ -50,7 +50,7 @@ class CoverageOptions {
     try {
       for (final regExpStr in packagesRegExps) {
         final regExp = RegExp(regExpStr);
-        final packagesNames = await _getPackagesNamesFromPackageConfig();
+        final packagesNames = await _getPackagesNameFromPackageConfig();
         packagesToInclude.addAll(
           packagesNames
               .where(regExp.hasMatch),
@@ -76,7 +76,7 @@ class CoverageOptions {
     } 
   }
 
-  Future<List<String>> _getPackagesNamesFromPackageConfig() async {
+  Future<List<String>> _getPackagesNameFromPackageConfig() async {
     try {
       final packagesConfig = File('.dart_tool/package_config.json').readAsStringSync();
       final packageJson = jsonDecode(packagesConfig) as Map<String, dynamic>;
