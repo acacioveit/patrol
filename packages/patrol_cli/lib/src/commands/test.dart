@@ -337,7 +337,7 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
 
     switch (device.targetPlatform) {
       case TargetPlatform.android:
-        action = () => _androidTestBackend.execute(android, device);
+        action = () => _androidTestBackend.execute(android, device, coverageOptions: coverageOptions);
         final package = android.packageName;
         if (package != null && uninstall) {
           finalizer = () => _androidTestBackend.uninstall(package, device);

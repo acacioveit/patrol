@@ -17,7 +17,7 @@ import 'package:patrol_cli/src/devices.dart';
 import 'package:platform/platform.dart';
 import 'package:process/process.dart';
 
-import 'log_processor.dart';
+import '../crossplatform/log_processor.dart';
 
 enum BuildMode {
   debug,
@@ -78,7 +78,6 @@ class IOSTestBackend {
   final Logger _logger;
   final CoverageCollector _coverageCollector = CoverageCollector();
   late CoverageOptions _coverageOptions;
-
 
   Future<void> build(IOSAppOptions options) async {
     await _disposeScope.run((scope) async {
@@ -161,33 +160,32 @@ class IOSTestBackend {
   }) async {
     
     String logFilePath;
-    IOSLogProcessor? logProcessor;
+    LogProcessor? logProcessor;
     _coverageOptions = coverageOptions;
 
-    logFilePath = join(
-      io.Directory.systemTemp.path,
-      'patrol_${device.id}_${DateTime.now().millisecondsSinceEpoch}.log',
-    );
+    if (_coverageOptions.coverage) {
+      logFilePath = join(
+        io.Directory.systemTemp.path,
+        'patrol_${device.id}_${DateTime.now().millisecondsSinceEpoch}.log',
+      );
 
-    logProcessor = IOSLogProcessor(
-      device.id,
-      logFilePath,
-      (uri) => _handleStartTest(uri, device),
-      _logger,
-    );
+      logProcessor = LogProcessor(
+        device,
+        logFilePath,
+        (uri) => _handleStartTest(uri, device),
+        _logger,
+      );
 
-    await _coverageCollector.initialize(
-        logger: _logger,
-        processManager: _processManager,
-        options: coverageOptions,
-    );
+      await _coverageCollector.initialize(
+          logger: _logger,
+          processManager: _processManager,
+          options: coverageOptions,
+      );
 
-    await logProcessor.start();
+      await logProcessor.start();
+    }
 
     // exit program
-    
-
-    _logger.detail('Log file: $logFilePath');
 
     await _disposeScope.run((scope) async {
       final subject = '${options.description} on ${device.description}';
