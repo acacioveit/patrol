@@ -230,8 +230,8 @@ class CoverageCollector {
           await _setBreakpointsInScript(isolateId, scriptRef);
         }
       }
-    } catch (e) {
-      _logger.warn('Error setting breakpoints: $e');
+    } catch (err) {
+      _logger.warn('Error setting breakpoints: $err');
     }
   }
 
