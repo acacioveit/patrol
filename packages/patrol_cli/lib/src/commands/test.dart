@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:patrol_cli/src/analytics/analytics.dart';
 import 'package:patrol_cli/src/android/android_test_backend.dart';
@@ -7,6 +8,7 @@ import 'package:patrol_cli/src/base/logger.dart';
 import 'package:patrol_cli/src/commands/dart_define_utils.dart';
 import 'package:patrol_cli/src/compatibility_checker.dart';
 import 'package:patrol_cli/src/crossplatform/app_options.dart';
+import 'package:patrol_cli/src/crossplatform/coverage_options.dart';
 import 'package:patrol_cli/src/dart_defines_reader.dart';
 import 'package:patrol_cli/src/devices.dart';
 import 'package:patrol_cli/src/ios/ios_test_backend.dart';
@@ -49,6 +51,12 @@ class TestCommand extends PatrolCommand {
     usesLabelOption();
     usesWaitOption();
     usesPortOptions();
+
+    useCoverageOption();
+    useFunctionCoverageOption();
+    useMergeCoverageOption();
+    useCoveragePathOption();
+    useCoveragePackageOption();
 
     usesUninstallOption();
 
@@ -112,7 +120,7 @@ class TestCommand extends PatrolCommand {
       _logger.detail('Received Android flavor: $androidFlavor');
     }
     if (iosFlavor != null) {
-      _logger.detail('Received iOS flavor: $iosFlavor');
+      // _logger.detail('Received iOS flavor: $iosFlavor');
     }
     if (macosFlavor != null) {
       _logger.detail('Received macOS flavor: $macosFlavor');
@@ -154,6 +162,28 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       ..._dartDefinesReader.fromFile(),
       ..._dartDefinesReader.fromCli(args: stringsArg('dart-define')),
     };
+
+            final coverage = boolArg('coverage');
+    _logger.detail('Received coverage: $coverage');
+    final functionCoverage = boolArg('function-coverage');
+    _logger.detail('Received function coverage: $functionCoverage');
+    final packagesRegExps = stringsArg('coverage-package');
+    _logger.detail('Received coverage package: $packagesRegExps');
+
+    final coverageOpts = CoverageOptions(
+      coverage: coverage,
+      functionCoverage: functionCoverage,
+      packagesRegExps: packagesRegExps,
+    );
+
+    final coveragePackages = await coverageOpts.getCoveragePackages();
+    final coveragePackagesList = coveragePackages.toList().join(',');
+    _logger.detail('Received coverage packages: $coveragePackagesList');
+    final packageConfig = await coverageOpts.getPackageConfigData();
+    // convert to base64 to avoid issues with special characters
+    final packageConfigBase64 = base64Encode(utf8.encode(packageConfig));
+    _logger.detail('Received package config: $packageConfig');
+
     final internalDartDefines = {
       'PATROL_WAIT': wait.toString(),
       'PATROL_APP_PACKAGE_NAME': packageName,
@@ -165,6 +195,10 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       'PATROL_TEST_LABEL_ENABLED': displayLabel.toString(),
       'PATROL_TEST_SERVER_PORT': super.testServerPort.toString(),
       'PATROL_APP_SERVER_PORT': super.appServerPort.toString(),
+      'PATROL_COVERAGE': coverageOpts.coverage.toString(),
+      'PATROL_FUNCTION_COVERAGE': coverageOpts.functionCoverage.toString(),
+      'PATROL_COVERAGE_PACKAGES': coveragePackagesList,
+      'PATROL_PACKAGE_CONFIG': packageConfigBase64,
     }.withNullsRemoved();
 
     final dartDefines = {...customDartDefines, ...internalDartDefines};
@@ -183,6 +217,8 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     }
 
     final dartDefineFromFilePaths = stringsArg('dart-define-from-file');
+
+    _logger.detail('Received coverage: $coverage');
 
     final mergedDartDefines = mergeDartDefines(
       dartDefineFromFilePaths,
@@ -216,6 +252,8 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       testServerPort: super.testServerPort,
     );
 
+    _logger.detail('Coverage options: ${coverageOpts.coverage}');
+
     final macosOpts = MacOSAppOptions(
       flutter: flutterOpts,
       scheme: buildMode.createScheme(macosFlavor),
@@ -223,6 +261,7 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       appServerPort: super.appServerPort,
       testServerPort: super.testServerPort,
     );
+    
 
     await _build(androidOpts, iosOpts, macosOpts, device);
     await _preExecute(androidOpts, iosOpts, macosOpts, device, uninstall);
@@ -231,6 +270,7 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       androidOpts,
       iosOpts,
       macosOpts,
+      coverageOpts,
       uninstall: uninstall,
       device: device,
     );
@@ -304,7 +344,8 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     FlutterAppOptions flutterOpts,
     AndroidAppOptions android,
     IOSAppOptions ios,
-    MacOSAppOptions macos, {
+    MacOSAppOptions macos,
+    CoverageOptions coverageOptions, {
     required bool uninstall,
     required Device device,
   }) async {
@@ -313,7 +354,7 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
 
     switch (device.targetPlatform) {
       case TargetPlatform.android:
-        action = () => _androidTestBackend.execute(android, device);
+        action = () => _androidTestBackend.execute(android, device, coverageOptions: coverageOptions);
         final package = android.packageName;
         if (package != null && uninstall) {
           finalizer = () => _androidTestBackend.uninstall(package, device);
@@ -321,7 +362,8 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       case TargetPlatform.macOS:
         action = () async => _macosTestBackend.execute(macos, device);
       case TargetPlatform.iOS:
-        action = () async => _iosTestBackend.execute(ios, device);
+        _logger.detail('Will execute iOS tests');
+        action = () async => _iosTestBackend.execute(ios, device, coverageOptions: coverageOptions);
         final bundleId = ios.bundleId;
         if (bundleId != null && uninstall) {
           finalizer = () => _iosTestBackend.uninstall(
