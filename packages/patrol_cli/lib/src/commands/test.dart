@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:patrol_cli/src/analytics/analytics.dart';
 import 'package:patrol_cli/src/android/android_test_backend.dart';
@@ -158,6 +159,28 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       ..._dartDefinesReader.fromFile(),
       ..._dartDefinesReader.fromCli(args: stringsArg('dart-define')),
     };
+
+            final coverage = boolArg('coverage');
+    _logger.detail('Received coverage: $coverage');
+    final functionCoverage = boolArg('function-coverage');
+    _logger.detail('Received function coverage: $functionCoverage');
+    final packagesRegExps = stringsArg('coverage-package');
+    _logger.detail('Received coverage package: $packagesRegExps');
+
+    final coverageOpts = CoverageOptions(
+      coverage: coverage,
+      functionCoverage: functionCoverage,
+      packagesRegExps: packagesRegExps,
+    );
+
+    final coveragePackages = await coverageOpts.getCoveragePackages();
+    final coveragePackagesList = coveragePackages.toList().join(',');
+    _logger.detail('Received coverage packages: $coveragePackagesList');
+    final packageConfig = await coverageOpts.getPackageConfigData();
+    // convert to base64 to avoid issues with special characters
+    final packageConfigBase64 = base64Encode(utf8.encode(packageConfig));
+    _logger.detail('Received package config: $packageConfig');
+
     final internalDartDefines = {
       'PATROL_WAIT': wait.toString(),
       'PATROL_APP_PACKAGE_NAME': packageName,
@@ -169,6 +192,10 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       'PATROL_TEST_LABEL_ENABLED': displayLabel.toString(),
       'PATROL_TEST_SERVER_PORT': super.testServerPort.toString(),
       'PATROL_APP_SERVER_PORT': super.appServerPort.toString(),
+      'PATROL_COVERAGE': coverageOpts.coverage.toString(),
+      'PATROL_FUNCTION_COVERAGE': coverageOpts.functionCoverage.toString(),
+      'PATROL_COVERAGE_PACKAGES': coveragePackagesList,
+      'PATROL_PACKAGE_CONFIG': packageConfigBase64,
     }.withNullsRemoved();
 
     final dartDefines = {...customDartDefines, ...internalDartDefines};
@@ -188,14 +215,7 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
 
     final dartDefineFromFilePaths = stringsArg('dart-define-from-file');
 
-    final coverage = boolArg('coverage');
-
     _logger.detail('Received coverage: $coverage');
-
-    final functionCoverage = boolArg('function-coverage');
-    final mergeCoverage = boolArg('merge-coverage');
-    final coveragePath = stringArg('coverage-path');
-    final packagesRegExps = stringsArg('coverage-package');
 
     final mergedDartDefines = mergeDartDefines(
       dartDefineFromFilePaths,
@@ -226,15 +246,6 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       simulator: !device.real,
       appServerPort: super.appServerPort,
       testServerPort: super.testServerPort,
-    );
-
-    final coverageOpts = CoverageOptions(
-      coverage: coverage,
-      functionCoverage: functionCoverage,
-      mergeCoverage: mergeCoverage,
-      coveragePath: coveragePath,
-      packagesRegExps: packagesRegExps,
-      appName: config.android.appName ?? config.ios.appName ?? '',
     );
 
     _logger.detail('Coverage options: ${coverageOpts.coverage}');

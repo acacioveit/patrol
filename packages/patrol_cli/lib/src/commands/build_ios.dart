@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:path/path.dart' show join;
 import 'package:patrol_cli/src/analytics/analytics.dart';
 import 'package:patrol_cli/src/base/extensions/core.dart';
 import 'package:patrol_cli/src/base/logger.dart';
 import 'package:patrol_cli/src/crossplatform/app_options.dart';
+import 'package:patrol_cli/src/crossplatform/coverage_options.dart';
 import 'package:patrol_cli/src/dart_defines_reader.dart';
 import 'package:patrol_cli/src/ios/ios_test_backend.dart';
 import 'package:patrol_cli/src/pubspec_reader.dart';
@@ -104,6 +106,28 @@ class BuildIOSCommand extends PatrolCommand {
       ..._dartDefinesReader.fromFile(),
       ..._dartDefinesReader.fromCli(args: stringsArg('dart-define')),
     };
+
+            final coverage = boolArg('coverage');
+    _logger.detail('Received coverage: $coverage');
+    final functionCoverage = boolArg('function-coverage');
+    _logger.detail('Received function coverage: $functionCoverage');
+    final packagesRegExps = stringsArg('coverage-package');
+    _logger.detail('Received coverage package: $packagesRegExps');
+
+    final coverageOpts = CoverageOptions(
+      coverage: coverage,
+      functionCoverage: functionCoverage,
+      packagesRegExps: packagesRegExps,
+    );
+
+    final coveragePackages = await coverageOpts.getCoveragePackages();
+    final coveragePackagesList = coveragePackages.toList().join(',');
+    _logger.detail('Received coverage packages: $coveragePackagesList');
+    final packageConfig = await coverageOpts.getPackageConfigData();
+    // convert to base64 to avoid issues with special characters
+    final packageConfigBase64 = base64Encode(utf8.encode(packageConfig));
+    _logger.detail('Received package config: $packageConfig');
+
     final internalDartDefines = {
       'PATROL_WAIT': defaultWait.toString(),
       'PATROL_APP_BUNDLE_ID': bundleId,
@@ -112,6 +136,10 @@ class BuildIOSCommand extends PatrolCommand {
       'INTEGRATION_TEST_SHOULD_REPORT_RESULTS_TO_NATIVE': 'false',
       'PATROL_TEST_SERVER_PORT': super.testServerPort.toString(),
       'PATROL_APP_SERVER_PORT': super.appServerPort.toString(),
+      'PATROL_COVERAGE': coverageOpts.coverage.toString(),
+      'PATROL_FUNCTION_COVERAGE': coverageOpts.functionCoverage.toString(),
+      'PATROL_COVERAGE_PACKAGES': coveragePackagesList,
+      'PATROL_PACKAGE_CONFIG': packageConfigBase64,
     }.withNullsRemoved();
 
     final dartDefines = {...customDartDefines, ...internalDartDefines};

@@ -145,10 +145,11 @@ abstract class PatrolCommand extends Command<int> {
     );
   }
 
-    void useCoverageOption() {
+  void useCoverageOption() {
     argParser.addFlag(
       'coverage',
       help: 'Whether to collect coverage information.',
+      negatable: false,
     );
   }
 
@@ -156,6 +157,7 @@ abstract class PatrolCommand extends Command<int> {
     argParser.addFlag(
       'function-coverage',
       help: 'Collect function coverage info',
+      negatable: false,
     );
   }
 
