@@ -29,7 +29,7 @@ dependencies:
   path_provider: ^2.0.11
   patrol_finders: ^2.0.1
   shelf: ^1.4.1
-  test_api: '^0.6.1'
+  test_api: '^0.7.1'
   vm_service: ^14.0.0
 
 dev_dependencies:
