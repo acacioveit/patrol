@@ -104,7 +104,7 @@ class CoverageCollector {
     _connectToVmService();
   }
 
-  Future<void> __writeCoverageDataToJsonFile(String coverageJsonData) async {
+  Future<void> _writeCoverageDataToJsonFile(String coverageJsonData) async {
     try {
       Directory? downloadsDir;
       if (Platform.isAndroid) {
@@ -129,9 +129,9 @@ class CoverageCollector {
     if (libraryNamesList == null || libraryNamesList.isEmpty) {
       return;
     }
-
+    print('Collecting coverage data for libraries: $libraryNamesList');
     final data = await _collectCoverageData(libraryNamesList);
-    await __writeCoverageDataToJsonFile(jsonEncode(data));
+    await _writeCoverageDataToJsonFile(jsonEncode(data));
   }
 
   Future<void> _connectToVmService() async {

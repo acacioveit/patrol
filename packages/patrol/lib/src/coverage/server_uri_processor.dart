@@ -34,8 +34,8 @@ class ServerUriProcessor {
         onServerUri(info.serverUri!);
         await stop();
       }
-    } catch (e) {
-      developer.log('Error checking for server URI: $e');
+    } catch (err) {
+      developer.log('Error checking for server URI: $err');
     }
   }
 }

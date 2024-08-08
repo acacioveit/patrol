@@ -159,31 +159,31 @@ class IOSTestBackend {
     CoverageOptions coverageOptions = const CoverageOptions(),
   }) async {
     
-    // String logFilePath;
-    // LogProcessor? logProcessor;
-    // _coverageOptions = coverageOptions;
+    String logFilePath;
+    LogProcessor? logProcessor;
+    _coverageOptions = coverageOptions;
 
-    // if (_coverageOptions.coverage) {
-    //   logFilePath = join(
-    //     io.Directory.systemTemp.path,
-    //     'patrol_${device.id}_${DateTime.now().millisecondsSinceEpoch}.log',
-    //   );
+    if (_coverageOptions.coverage) {
+      logFilePath = join(
+        io.Directory.systemTemp.path,
+        'patrol_${device.id}_${DateTime.now().millisecondsSinceEpoch}.log',
+      );
 
-    //   logProcessor = LogProcessor(
-    //     device,
-    //     logFilePath,
-    //     (uri) => _handleStartTest(uri, device),
-    //     _logger,
-    //   );
+      logProcessor = LogProcessor(
+        device,
+        logFilePath,
+        (uri) => _handleStartTest(uri, device),
+        _logger,
+      );
 
-    //   await _coverageCollector.initialize(
-    //       logger: _logger,
-    //       processManager: _processManager,
-    //       options: coverageOptions,
-    //   );
+      await _coverageCollector.initialize(
+          logger: _logger,
+          processManager: _processManager,
+          options: coverageOptions,
+      );
 
-    //   await logProcessor.start();
-    // }
+      await logProcessor.start();
+    }
 
     // exit program
 
@@ -219,10 +219,10 @@ class IOSTestBackend {
       process.listenStdErr((l) => _logger.err('\t$l')).disposedBy(scope);
 
       final exitCode = await process.exitCode;
-      // if (coverageOptions.coverage) {
-      //   await logProcessor!.stop();
-      //   await _coverageCollector.stop();
-      // }
+      if (coverageOptions.coverage) {
+        await logProcessor!.stop();
+        await _coverageCollector.stop();
+      }
 
       if (exitCode == 0) {
         task.complete('Completed executing $subject');
