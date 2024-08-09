@@ -109,10 +109,13 @@ class PatrolBinding extends LiveTestWidgetsFlutterBinding {
             return ServiceExtensionResponse.result(jsonEncode({}));
           });
 
+          print('Waiting for coverage collection to finish');
+
           while (stopped) {
             // The loop is needed to keep this isolate alive until the coverage
             // data is collected.
             await Future<void>.delayed(const Duration(seconds: 1));
+            print("Still waiting for coverage collection to finish");
           }
         }
 

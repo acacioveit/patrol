@@ -15,6 +15,7 @@ Future<Map<String, HitMap>> _collectCoverage(
   String packageName,
   String mainIsolateId,
 ) async {
+  print("Collecting coverage for $packageName");
   final coverage = await collect(
     vmUri,
     false,
@@ -129,6 +130,7 @@ Future<void> runCodeCoverage({
       );
       await serviceClient.setFlag('pause_isolates_on_exit', 'true');
       await serviceClient.streamListen(EventStreams.kIsolate);
+      print("Flutter package name: $flutterPackageName");
       serviceClient.onIsolateEvent.listen(
         (event) async {
           if (event.kind == EventKind.kIsolateRunnable) {
@@ -155,7 +157,7 @@ Future<void> runCodeCoverage({
           if (event.extensionKind == 'testCount' && totalTestCount == null) {
             totalTestCount = event.extensionData!.data['testCount'] as int;
           }
-
+          print("Event: ${event.extensionKind}");
           if (event.extensionKind == 'waitForCoverageCollection') {
             hitMap.merge(
               await _collectCoverage(
@@ -179,6 +181,8 @@ Future<void> runCodeCoverage({
                 ),
                 ignoreGlobs: ignoreGlobs,
               );
+
+              print("Report: $report");
 
               await _saveCoverage(report);
             }
