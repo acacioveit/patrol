@@ -155,6 +155,18 @@ abstract class PatrolCommand extends Command<int> {
     );
   }
 
+  void useCoverageOptions() {
+    argParser
+      ..addFlag(
+        'coverage',
+        help: 'Generate coverage.',
+      )
+      ..addMultiOption(
+        'coverage-ignore',
+        help: 'Exclude files from coverage using glob patterns.',
+      );
+  }
+
   // Runtime-only options
 
   void usesUninstallOption() {
