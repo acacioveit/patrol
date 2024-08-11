@@ -11,7 +11,7 @@ import 'package:patrol_cli/src/base/extensions/core.dart';
 import 'package:patrol_cli/src/base/logger.dart';
 import 'package:patrol_cli/src/commands/dart_define_utils.dart';
 import 'package:patrol_cli/src/compatibility_checker.dart';
-import 'package:patrol_cli/src/coverage/run_code_coverage.dart';
+import 'package:patrol_cli/src/coverage/coverage_collector.dart';
 import 'package:patrol_cli/src/crossplatform/app_options.dart';
 import 'package:patrol_cli/src/dart_defines_reader.dart';
 import 'package:patrol_cli/src/devices.dart';
@@ -80,6 +80,7 @@ class TestCommand extends PatrolCommand {
 
   final Analytics _analytics;
   final Logger _logger;
+  late CoverageCollector coverageCollector;
 
   @override
   String get name => 'test';
@@ -255,22 +256,23 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     await _preExecute(androidOpts, iosOpts, macosOpts, device, uninstall);
 
     if (coverageEnabled) {
-      final Set<String> packagesToInclude = _getCoveragePackages(
-        coveragePackagesRegexExp,
-        config.flutterPackageName,
-        _packageDirectory,
-      );
-      await runCodeCoverage(
+      coverageCollector = CoverageCollector(
         flutterPackageName: config.flutterPackageName,
         flutterPackageDirectory: _packageDirectory,
         platform: device.targetPlatform,
-        libraryNames: packagesToInclude,
-        logger: _logger,
-        ignoreGlobs: ignoreGlobs,
+        libraryNames: _getCoveragePackages(
+          coveragePackagesRegexExp,
+          config.flutterPackageName,
+          _packageDirectory,
+        ),
         functionCoverageEnabled: functionCoverageEnabled,
         branchCoverageEnabled: branchCoverageEnabled,
+        logger: _logger,
+        ignoreGlobs: ignoreGlobs,
         coveragePathOutput: coveragePathOutput ?? 'coverage',
       );
+
+      await coverageCollector.start();
     }
 
     final allPassed = await _execute(
@@ -283,11 +285,7 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     );
 
     if (coverageEnabled) {
-      await collectCoverageData(
-        flutterPackageDirectory: _packageDirectory,
-        logger: _logger,
-        ignoreGlobs: ignoreGlobs,
-      );
+      await coverageCollector.collectCoverageData();
     }
 
     return allPassed ? 0 : 1;
