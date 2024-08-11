@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io' as io;
 
 import 'package:file/file.dart';
 import 'package:glob/glob.dart';
 import 'package:patrol_cli/src/analytics/analytics.dart';
 import 'package:patrol_cli/src/android/android_test_backend.dart';
+import 'package:patrol_cli/src/base/exceptions.dart';
 import 'package:patrol_cli/src/base/extensions/core.dart';
 import 'package:patrol_cli/src/base/logger.dart';
 import 'package:patrol_cli/src/commands/dart_define_utils.dart';
@@ -168,6 +171,10 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     final uninstall = boolArg('uninstall');
     final coverageEnabled = boolArg('coverage');
     final ignoreGlobs = stringsArg('coverage-ignore').map(Glob.new).toSet();
+    final functionCoverageEnabled = boolArg('function-coverage');
+    final branchCoverageEnabled = boolArg('branch-coverage');
+    final coveragePathOutput = stringArg('coverage-path');
+    final coveragePackagesRegexExp = stringsArg('coverage-package');
 
     final customDartDefines = {
       ..._dartDefinesReader.fromFile(),
@@ -248,12 +255,21 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     await _preExecute(androidOpts, iosOpts, macosOpts, device, uninstall);
 
     if (coverageEnabled) {
+      final Set<String> packagesToInclude = _getCoveragePackages(
+        coveragePackagesRegexExp,
+        config.flutterPackageName,
+        _packageDirectory,
+      );
       await runCodeCoverage(
         flutterPackageName: config.flutterPackageName,
         flutterPackageDirectory: _packageDirectory,
         platform: device.targetPlatform,
+        libraryNames: packagesToInclude,
         logger: _logger,
         ignoreGlobs: ignoreGlobs,
+        functionCoverageEnabled: functionCoverageEnabled,
+        branchCoverageEnabled: branchCoverageEnabled,
+        coveragePathOutput: coveragePathOutput ?? 'coverage',
       );
     }
 
@@ -265,6 +281,14 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
       uninstall: uninstall,
       device: device,
     );
+
+    if (coverageEnabled) {
+      await collectCoverageData(
+        flutterPackageDirectory: _packageDirectory,
+        logger: _logger,
+        ignoreGlobs: ignoreGlobs,
+      );
+    }
 
     return allPassed ? 0 : 1;
   }
@@ -382,5 +406,38 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     }
 
     return allPassed;
+  }
+
+  Set<String> _getCoveragePackages(
+    List<String> packagesRegExps,
+    String projectName,
+    Directory flutterPackageDirectory,
+  ) {
+    final Set<String> packagesToInclude = <String>{
+      if (packagesRegExps.isEmpty) projectName,
+    };
+    try {
+      for (final String regExpStr in packagesRegExps) {
+        final RegExp regExp = RegExp(regExpStr);
+        final packageConfig = io.File(flutterPackageDirectory.path +
+                '/.dart_tool/package_config.json')
+            .readAsStringSync();
+        final packageConfigJson =
+            jsonDecode(packageConfig) as Map<String, dynamic>;
+        final packagesName = <String>[];
+
+        for (final package in packageConfigJson['packages'] as List) {
+          packagesName.add(package['name'] as String);
+        }
+
+        packagesToInclude.addAll(
+          packagesName.where((name) => regExp.hasMatch(name)),
+        );
+      }
+    } on FormatException catch (e) {
+      throwToolExit('Regular expression syntax is invalid. $e');
+    }
+
+    return packagesToInclude;
   }
 }

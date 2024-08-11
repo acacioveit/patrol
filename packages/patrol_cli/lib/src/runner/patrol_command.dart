@@ -176,13 +176,39 @@ abstract class PatrolCommand extends Command<int> {
       ..addFlag(
         'coverage',
         help: 'Generate coverage.',
+        negatable: false,
+        defaultsTo: false,
       )
       ..addMultiOption(
         'coverage-ignore',
         help: 'Exclude files from coverage using glob patterns.',
+      )
+      ..addFlag(
+        'function-coverage',
+        help: 'Collect function coverage info',
+        negatable: false,
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'branch-coverage',
+        help:
+            "Whether to collect branch coverage information. Implies collecting coverage data.",
+        negatable: false,
+        defaultsTo: false,
+      )
+      ..addOption(
+        'coverage-path',
+        help:
+            'Where to store coverage information (if coverage is enabled). (defaults to "coverage/patrol_lcov.info")',
+        defaultsTo: 'coverage',
+      )
+      ..addMultiOption(
+        'coverage-package',
+        help:
+            'A regular expression matching packages names to include in thecoverage report (if coverage is enabled). If unset, matches the current package name.',
+        valueHelp: '<package-name-regexp>',
       );
   }
-
   // Runtime-only options
 
   void usesUninstallOption() {

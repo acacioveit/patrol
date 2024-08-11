@@ -9,42 +9,62 @@ import 'package:patrol_cli/src/devices.dart';
 import 'package:vm_service/vm_service.dart';
 import 'package:vm_service/vm_service_io.dart';
 
-Future<Map<String, HitMap>> _collectCoverage(
-  VmService client,
-  Uri vmUri,
-  String packageName,
-  String mainIsolateId,
-) async {
-  print("Collecting coverage for $packageName");
-  final coverage = await collect(
-    vmUri,
-    false,
-    false,
-    false,
-    {packageName},
-  );
+late Process logsProcess;
+late Map<String, HitMap> hitMap = <String, HitMap>{};
+late String mainIsolateId;
+late Logger logger;
 
-  final socket = await WebSocket.connect(client.wsUri!)
-    ..add(
-      jsonEncode(
-        {
-          'jsonrpc': '2.0',
-          'id': 21,
-          'method': 'ext.patrol.markTestCompleted',
-          'params': {
-            'isolateId': mainIsolateId,
-            'command': 'markTestCompleted',
-          },
-        },
-      ),
+Future<void> collectCoverageForTest(
+    VmService client,
+    String isolateId,
+    String testName,
+    Uri vmServiceUrl,
+    Set<String>? libraryNames,
+    bool functionCoverageEnabled,
+    bool branchCoverageEnabled) async {
+  try {
+    print(("Collecting coverage for test: $testName"));
+
+    final coverage = await collect(
+      vmServiceUrl,
+      true,
+      false,
+      false,
+      libraryNames,
+      functionCoverage: functionCoverageEnabled,
+      branchCoverage: branchCoverageEnabled,
     );
-  await socket.close();
 
-  final map = await HitMap.parseJson(
-    coverage['coverage'] as List<Map<String, dynamic>>,
+    hitMap.merge(await HitMap.parseJson(
+      coverage['coverage'] as List<Map<String, dynamic>>,
+    ));
+
+    print("Coverage collected for test: $testName");
+  } catch (e) {
+    print("Error collecting coverage for test: $e");
+  }
+}
+
+Future<void> collectCoverageData({
+  required Directory flutterPackageDirectory,
+  required Logger logger,
+  required Set<Glob> ignoreGlobs,
+}) async {
+  logsProcess.kill();
+
+  logger.info('All coverage gathered, saving');
+  final report = hitMap.formatLcov(
+    await Resolver.create(
+      packagePath: flutterPackageDirectory.path,
+    ),
+    ignoreGlobs: ignoreGlobs,
   );
 
-  return map;
+  print("Marking test completed");
+  print("Test completed");
+  logsProcess.kill();
+
+  await _saveCoverage(report);
 }
 
 Future<ProcessResult> _forwardAdbPort(String host, String guest) async {
@@ -72,22 +92,22 @@ Future<void> runCodeCoverage({
   required String flutterPackageName,
   required Directory flutterPackageDirectory,
   required TargetPlatform platform,
+  required Set<String>? libraryNames,
+  required bool functionCoverageEnabled,
+  required bool branchCoverageEnabled,
+  required String? coveragePathOutput,
   required Logger logger,
   required Set<Glob> ignoreGlobs,
 }) async {
   final homeDirectory =
       Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
 
-  final logsProcess = await Process.start(
+  logsProcess = await Process.start(
     'flutter',
     ['logs'],
     workingDirectory: homeDirectory,
   );
   final vmRegex = RegExp('listening on (http.+)');
-
-  final hitMap = <String, HitMap>{};
-  int? totalTestCount;
-  var count = 0;
 
   logsProcess.stdout.transform(utf8.decoder).listen(
     (line) async {
@@ -125,70 +145,43 @@ Future<void> runCodeCoverage({
       }
 
       final serviceUri = Uri.parse('http://127.0.0.1:$hostPort/$auth');
+      logger.info("Connecting to Dart VM at $serviceUri");
       final serviceClient = await vmServiceConnectUri(
         _createWebSocketUri(serviceUri).toString(),
       );
-      await serviceClient.setFlag('pause_isolates_on_exit', 'true');
+      await serviceClient.streamListen(EventStreams.kExtension);
       await serviceClient.streamListen(EventStreams.kIsolate);
-      print("Flutter package name: $flutterPackageName");
-      serviceClient.onIsolateEvent.listen(
-        (event) async {
-          if (event.kind == EventKind.kIsolateRunnable) {
-            final isolateCoverage = await collect(
+
+      serviceClient.onExtensionEvent.listen((event) async {
+        if (event.extensionKind == 'coverageCollectionReady') {
+          logger.info('Coverage collection ready');
+          final isolateId = event.extensionData!.data['isolateId'] as String;
+          final testName = event.extensionData!.data['testName'] as String;
+          await collectCoverageForTest(
+              serviceClient,
+              isolateId,
+              testName,
               serviceUri,
-              true,
-              false,
-              false,
-              {flutterPackageName},
-              isolateIds: {event.isolate!.id!},
-            );
-            hitMap.merge(
-              await HitMap.parseJson(
-                isolateCoverage['coverage'] as List<Map<String, dynamic>>,
-              ),
-            );
-          }
-        },
-      );
+              libraryNames,
+              functionCoverageEnabled,
+              branchCoverageEnabled);
+        }
+      });
 
-      await serviceClient.streamListen('Extension');
-      serviceClient.onExtensionEvent.listen(
-        (event) async {
-          if (event.extensionKind == 'testCount' && totalTestCount == null) {
-            totalTestCount = event.extensionData!.data['testCount'] as int;
-          }
-          print("Event: ${event.extensionKind}");
-          if (event.extensionKind == 'waitForCoverageCollection') {
-            hitMap.merge(
-              await _collectCoverage(
-                serviceClient,
-                serviceUri,
-                flutterPackageName,
-                event.extensionData!.data['mainIsolateId'] as String,
-              ),
-            );
-            await serviceClient.dispose();
+      serviceClient.onIsolateEvent.listen((event) async {
+        if (event.kind == EventKind.kIsolateExit) {
+          // Realizar qualquer limpeza necessária após o término do isolate
+          logger.info('Isolate ${event.isolate!.name} exited');
+        }
+      });
 
-            logger.info('Collected ${++count} / $totalTestCount coverages');
-
-            if (count == totalTestCount) {
-              logsProcess.kill();
-
-              logger.info('All coverage gathered, saving');
-              final report = hitMap.formatLcov(
-                await Resolver.create(
-                  packagePath: flutterPackageDirectory.path,
-                ),
-                ignoreGlobs: ignoreGlobs,
-              );
-
-              print("Report: $report");
-
-              await _saveCoverage(report);
-            }
-          }
-        },
-      );
+      serviceClient.onDebugEvent.listen((event) async {
+        if (event.kind == EventKind.kPauseBreakpoint) {
+          // O isolate foi pausado pelo debugger
+          final isolateId = event.isolate!.id!;
+          print("Isolate paused by debugger: $isolateId");
+        }
+      });
     },
   );
 }
