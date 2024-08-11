@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io' as io;
@@ -96,29 +97,17 @@ class PatrolBinding extends LiveTestWidgetsFlutterBinding {
 
       if (nameOfRequestedTest == _currentDartTest) {
         if (const bool.fromEnvironment('COVERAGE_ENABLED')) {
-          postEvent(
-            'waitForCoverageCollection',
-            {'mainIsolateId': Service.getIsolateId(Isolate.current)},
-          );
-
-          var stopped = true;
-
-          registerExtension('ext.patrol.markTestCompleted',
-              (method, parameters) async {
-            stopped = false;
-            return ServiceExtensionResponse.result(jsonEncode({}));
+          // Postar um evento para sinalizar que o teste está pronto para coleta de cobertura
+          postEvent('coverageCollectionReady', {
+            'isolateId': Service.getIsolateId(Isolate.current),
+            'testName': _currentDartTest,
           });
 
-          print('Waiting for coverage collection to finish');
+          // Pausar o isolate aqui para permitir a coleta de cobertura
+          debugger(when: true);
 
-          while (stopped) {
-            // The loop is needed to keep this isolate alive until the coverage
-            // data is collected.
-            await Future<void>.delayed(const Duration(seconds: 1));
-            print("Still waiting for coverage collection to finish");
-          }
+          // O isolate será retomado pelo cliente após a coleta de cobertura
         }
-
         logger(
           'finished test $_currentDartTest. Will report its status back to the native side',
         );
