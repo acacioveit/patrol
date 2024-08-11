@@ -23,7 +23,6 @@ class CoverageCollector {
   late VmService _serviceClient;
   final Map<String, HitMap> _hitMap = <String, HitMap>{};
   late Process _logsProcess;
-  bool _isRunning = false;
 
   CoverageCollector({
     required this.flutterPackageName,
@@ -38,13 +37,10 @@ class CoverageCollector {
   });
 
   Future<void> start() async {
-    final homeDirectory =
-        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-
     _logsProcess = await Process.start(
       'flutter',
       ['logs'],
-      workingDirectory: homeDirectory,
+      workingDirectory: flutterPackageDirectory.path,
     );
     final vmRegex = RegExp('listening on (http.+)');
 
@@ -64,10 +60,6 @@ class CoverageCollector {
         switch (platform) {
           case TargetPlatform.android:
             await _forwardAdbPort('61011', port);
-
-            // It is necessary to grab the port from adb forward --list because
-            // if debugger was attached, the port might be different from the one
-            // we set
             final forwardList = await Process.run('adb', ['forward', '--list']);
             final output = forwardList.stdout as String;
             hostPort =
@@ -85,19 +77,19 @@ class CoverageCollector {
 
         final serviceUri = Uri.parse('http://127.0.0.1:$hostPort/$auth');
         logger.info("Connecting to Dart VM at $serviceUri");
-        final serviceClient = await vmServiceConnectUri(
-          _createWebSocketUri(serviceUri).toString(),
+        _serviceClient = await vmServiceConnectUri(
+          _covertToWebSocketUri(serviceUri).toString(),
         );
-        await serviceClient.streamListen(EventStreams.kExtension);
-        await serviceClient.streamListen(EventStreams.kIsolate);
+        await _serviceClient.streamListen(EventStreams.kExtension);
+        await _serviceClient.streamListen(EventStreams.kIsolate);
 
-        serviceClient.onExtensionEvent.listen((event) async {
+        _serviceClient.onExtensionEvent.listen((event) async {
           if (event.extensionKind == 'coverageCollectionReady') {
-            logger.info('Coverage collection ready');
+            logger.detail('Coverage collection ready');
             final isolateId = event.extensionData!.data['isolateId'] as String;
             final testName = event.extensionData!.data['testName'] as String;
             await _collectCoverageForTest(
-                serviceClient,
+                _serviceClient,
                 isolateId,
                 testName,
                 serviceUri,
@@ -107,16 +99,9 @@ class CoverageCollector {
           }
         });
 
-        serviceClient.onIsolateEvent.listen((event) async {
-          if (event.kind == EventKind.kIsolateExit) {
-            // Realizar qualquer limpeza necessária após o término do isolate
-            logger.info('Isolate ${event.isolate!.name} exited');
-          }
-        });
-
-        serviceClient.onDebugEvent.listen((event) async {
+        _serviceClient.onDebugEvent.listen((event) async {
           if (event.kind == EventKind.kPauseBreakpoint) {
-            // O isolate foi pausado pelo debugger
+            // TODO: use this to collect coverage
             final isolateId = event.isolate!.id!;
             print("Isolate paused by debugger: $isolateId");
           }
@@ -134,7 +119,7 @@ class CoverageCollector {
       bool functionCoverageEnabled,
       bool branchCoverageEnabled) async {
     try {
-      print(("Collecting coverage for test: $testName"));
+      logger.info("Collecting coverage for test: $testName");
 
       final coverage = await collect(
         vmServiceUrl,
@@ -150,9 +135,11 @@ class CoverageCollector {
         coverage['coverage'] as List<Map<String, dynamic>>,
       ));
 
-      print("Coverage collected for test: $testName");
+      logger.info("Coverage collected for test: $testName");
     } catch (e) {
-      print("Error collecting coverage for test: $e");
+      logger.err("Error collecting coverage for test: $testName");
+      logger.err(e.toString());
+      await client.resume(isolateId);
     }
   }
 
@@ -167,8 +154,6 @@ class CoverageCollector {
       ignoreGlobs: ignoreGlobs,
     );
 
-    print("Marking test completed");
-    print("Test completed");
     _logsProcess.kill();
 
     await _saveCoverage(report);
@@ -178,7 +163,7 @@ class CoverageCollector {
     return Process.run('adb', ['forward', 'tcp:$host', 'tcp:$guest']);
   }
 
-  Uri _createWebSocketUri(Uri uri) {
+  Uri _covertToWebSocketUri(Uri uri) {
     final pathSegments = uri.pathSegments.where((c) => c.isNotEmpty).toList()
       ..add('ws');
     return uri.replace(scheme: 'ws', pathSegments: pathSegments);
