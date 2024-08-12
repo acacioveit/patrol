@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:developer';
 import 'dart:io' as io;
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -93,6 +95,13 @@ class PatrolBinding extends LiveTestWidgetsFlutterBinding {
       final nameOfRequestedTest = await patrolAppService.testExecutionRequested;
 
       if (nameOfRequestedTest == _currentDartTest) {
+        if (const bool.fromEnvironment('COVERAGE_ENABLED')) {
+          postEvent('coverageCollectionReady', {
+            'isolateId': Service.getIsolateId(Isolate.current),
+            'testName': _currentDartTest,
+          });
+          debugger();
+        }
         logger(
           'finished test $_currentDartTest. Will report its status back to the native side',
         );
