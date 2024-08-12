@@ -97,16 +97,11 @@ class PatrolBinding extends LiveTestWidgetsFlutterBinding {
 
       if (nameOfRequestedTest == _currentDartTest) {
         if (const bool.fromEnvironment('COVERAGE_ENABLED')) {
-          // Postar um evento para sinalizar que o teste está pronto para coleta de cobertura
           postEvent('coverageCollectionReady', {
             'isolateId': Service.getIsolateId(Isolate.current),
             'testName': _currentDartTest,
           });
-
-          // Pausar o isolate aqui para permitir a coleta de cobertura
           debugger(when: true);
-
-          // O isolate será retomado pelo cliente após a coleta de cobertura
         }
         logger(
           'finished test $_currentDartTest. Will report its status back to the native side',
