@@ -37,8 +37,10 @@ void _test(Platform platform) {
       test('returns empty config when `patrol` block does not exist', () {
         fs.file('pubspec.yaml').writeAsStringSync(_pubspecBase);
 
-        expect(reader.read(),
-            equals(PatrolPubspecConfig.empty(flutterPackageName: 'example')),);
+        expect(
+          reader.read(),
+          equals(PatrolPubspecConfig.empty(flutterPackageName: 'example')),
+        );
       });
 
       test('reads top-level arguments', () {
