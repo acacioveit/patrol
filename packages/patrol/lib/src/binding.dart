@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io' as io;
@@ -101,7 +100,7 @@ class PatrolBinding extends LiveTestWidgetsFlutterBinding {
             'isolateId': Service.getIsolateId(Isolate.current),
             'testName': _currentDartTest,
           });
-          debugger(when: true);
+          debugger();
         }
         logger(
           'finished test $_currentDartTest. Will report its status back to the native side',
