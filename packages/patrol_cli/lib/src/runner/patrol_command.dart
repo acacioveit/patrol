@@ -177,7 +177,6 @@ abstract class PatrolCommand extends Command<int> {
         'coverage',
         help: 'Generate coverage.',
         negatable: false,
-        defaultsTo: false,
       )
       ..addMultiOption(
         'coverage-ignore',
@@ -187,14 +186,12 @@ abstract class PatrolCommand extends Command<int> {
         'function-coverage',
         help: 'Collect function coverage info',
         negatable: false,
-        defaultsTo: false,
       )
       ..addFlag(
         'branch-coverage',
         help:
-            "Whether to collect branch coverage information. Implies collecting coverage data.",
+            'Whether to collect branch coverage information. Implies collecting coverage data.',
         negatable: false,
-        defaultsTo: false,
       )
       ..addOption(
         'coverage-path',

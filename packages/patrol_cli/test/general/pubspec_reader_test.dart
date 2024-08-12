@@ -38,7 +38,7 @@ void _test(Platform platform) {
         fs.file('pubspec.yaml').writeAsStringSync(_pubspecBase);
 
         expect(reader.read(),
-            equals(PatrolPubspecConfig.empty(flutterPackageName: 'example')));
+            equals(PatrolPubspecConfig.empty(flutterPackageName: 'example')),);
       });
 
       test('reads top-level arguments', () {

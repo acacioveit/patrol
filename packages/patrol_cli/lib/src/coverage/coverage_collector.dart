@@ -103,7 +103,7 @@ class CoverageCollector {
           if (event.kind == EventKind.kPauseBreakpoint) {
             // TODO: use this to collect coverage
             final isolateId = event.isolate!.id!;
-            print('Isolate paused by debugger: $isolateId');
+            logger.detail('Isolate paused: $isolateId');
           }
         });
       },

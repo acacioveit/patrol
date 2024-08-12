@@ -411,14 +411,13 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     String projectName,
     Directory flutterPackageDirectory,
   ) {
-    final Set<String> packagesToInclude = <String>{
+    final packagesToInclude = <String>{
       if (packagesRegExps.isEmpty) projectName,
     };
     try {
-      for (final String regExpStr in packagesRegExps) {
-        final RegExp regExp = RegExp(regExpStr);
-        final packageConfig = io.File(flutterPackageDirectory.path +
-                '/.dart_tool/package_config.json')
+      for (final regExpStr in packagesRegExps) {
+        final regExp = RegExp(regExpStr);
+        final packageConfig = io.File('${flutterPackageDirectory.path}/.dart_tool/package_config.json',)
             .readAsStringSync();
         final packageConfigJson =
             jsonDecode(packageConfig) as Map<String, dynamic>;
@@ -429,7 +428,7 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
         }
 
         packagesToInclude.addAll(
-          packagesName.where((name) => regExp.hasMatch(name)),
+          packagesName.where(regExp.hasMatch),
         );
       }
     } on FormatException catch (e) {
