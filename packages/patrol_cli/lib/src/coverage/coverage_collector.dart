@@ -36,10 +36,12 @@ class CoverageCollector {
   late Process _logsProcess;
 
   Future<void> start() async {
+    final homeDirectory =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
     _logsProcess = await Process.start(
       'flutter',
       ['logs'],
-      workingDirectory: flutterPackageDirectory.path,
+      workingDirectory: homeDirectory,
     );
     final vmRegex = RegExp('listening on (http.+)');
 
