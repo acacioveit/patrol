@@ -139,9 +139,10 @@ class CoverageCollector {
       );
 
       logger.info('Coverage collected for test: $testName');
-    } catch (e) {
-      logger.err('Error collecting coverage for test: $testName');
-      logger.err(e.toString());
+    } catch (err) {
+      logger
+        ..err('Error collecting coverage for test: $testName')
+        ..err(err.toString());
       await client.resume(isolateId);
     }
   }

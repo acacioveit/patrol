@@ -417,13 +417,15 @@ See https://github.com/leancodepl/patrol/issues/1316 to learn more.
     try {
       for (final regExpStr in packagesRegExps) {
         final regExp = RegExp(regExpStr);
-        final packageConfig = io.File('${flutterPackageDirectory.path}/.dart_tool/package_config.json',)
-            .readAsStringSync();
+        final packageConfig = io.File(
+          '${flutterPackageDirectory.path}/.dart_tool/package_config.json',
+        ).readAsStringSync();
         final packageConfigJson =
             jsonDecode(packageConfig) as Map<String, dynamic>;
         final packagesName = <String>[];
 
         for (final package in packageConfigJson['packages'] as List) {
+          // ignore: avoid_dynamic_calls
           packagesName.add(package['name'] as String);
         }
 
