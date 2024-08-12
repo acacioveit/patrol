@@ -10,6 +10,17 @@ import 'package:vm_service/vm_service.dart';
 import 'package:vm_service/vm_service_io.dart';
 
 class CoverageCollector {
+  CoverageCollector({
+    required this.flutterPackageName,
+    required this.flutterPackageDirectory,
+    required this.platform,
+    this.libraryNames,
+    required this.functionCoverageEnabled,
+    required this.branchCoverageEnabled,
+    required this.logger,
+    required this.ignoreGlobs,
+    required this.coveragePathOutput,
+  });
   final String flutterPackageName;
   final Directory flutterPackageDirectory;
   final TargetPlatform platform;
@@ -23,18 +34,6 @@ class CoverageCollector {
   late VmService _serviceClient;
   final Map<String, HitMap> _hitMap = <String, HitMap>{};
   late Process _logsProcess;
-
-  CoverageCollector({
-    required this.flutterPackageName,
-    required this.flutterPackageDirectory,
-    required this.platform,
-    this.libraryNames,
-    required this.functionCoverageEnabled,
-    required this.branchCoverageEnabled,
-    required this.logger,
-    required this.ignoreGlobs,
-    required this.coveragePathOutput,
-  });
 
   Future<void> start() async {
     _logsProcess = await Process.start(
@@ -76,7 +75,7 @@ class CoverageCollector {
         }
 
         final serviceUri = Uri.parse('http://127.0.0.1:$hostPort/$auth');
-        logger.info("Connecting to Dart VM at $serviceUri");
+        logger.info('Connecting to Dart VM at $serviceUri');
         _serviceClient = await vmServiceConnectUri(
           _covertToWebSocketUri(serviceUri).toString(),
         );
@@ -89,13 +88,14 @@ class CoverageCollector {
             final isolateId = event.extensionData!.data['isolateId'] as String;
             final testName = event.extensionData!.data['testName'] as String;
             await _collectCoverageForTest(
-                _serviceClient,
-                isolateId,
-                testName,
-                serviceUri,
-                libraryNames,
-                functionCoverageEnabled,
-                branchCoverageEnabled);
+              _serviceClient,
+              isolateId,
+              testName,
+              serviceUri,
+              libraryNames,
+              functionCoverageEnabled,
+              branchCoverageEnabled,
+            );
           }
         });
 
@@ -103,7 +103,7 @@ class CoverageCollector {
           if (event.kind == EventKind.kPauseBreakpoint) {
             // TODO: use this to collect coverage
             final isolateId = event.isolate!.id!;
-            print("Isolate paused by debugger: $isolateId");
+            print('Isolate paused by debugger: $isolateId');
           }
         });
       },
@@ -111,15 +111,16 @@ class CoverageCollector {
   }
 
   Future<void> _collectCoverageForTest(
-      VmService client,
-      String isolateId,
-      String testName,
-      Uri vmServiceUrl,
-      Set<String>? libraryNames,
-      bool functionCoverageEnabled,
-      bool branchCoverageEnabled) async {
+    VmService client,
+    String isolateId,
+    String testName,
+    Uri vmServiceUrl,
+    Set<String>? libraryNames,
+    bool functionCoverageEnabled,
+    bool branchCoverageEnabled,
+  ) async {
     try {
-      logger.info("Collecting coverage for test: $testName");
+      logger.info('Collecting coverage for test: $testName');
 
       final coverage = await collect(
         vmServiceUrl,
@@ -131,13 +132,15 @@ class CoverageCollector {
         branchCoverage: branchCoverageEnabled,
       );
 
-      _hitMap.merge(await HitMap.parseJson(
-        coverage['coverage'] as List<Map<String, dynamic>>,
-      ));
+      _hitMap.merge(
+        await HitMap.parseJson(
+          coverage['coverage'] as List<Map<String, dynamic>>,
+        ),
+      );
 
-      logger.info("Coverage collected for test: $testName");
+      logger.info('Coverage collected for test: $testName');
     } catch (e) {
-      logger.err("Error collecting coverage for test: $testName");
+      logger.err('Error collecting coverage for test: $testName');
       logger.err(e.toString());
       await client.resume(isolateId);
     }
